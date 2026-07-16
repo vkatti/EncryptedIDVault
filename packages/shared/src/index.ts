@@ -1,9 +1,3 @@
-export type Result<T> =
-    | {
-        ok: true;
-        value: T;
-    }
-    | {
-        ok: false;
-        error: string;
-    };
+export * from "./errors.js";
+export * from "./messages.js";
+export * from "./vault.js";

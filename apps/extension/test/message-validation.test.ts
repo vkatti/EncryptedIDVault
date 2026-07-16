@@ -258,6 +258,36 @@ test("isBackgroundMessage rejects entries/delete with invalid payload", () => {
     assert.equal(isBackgroundMessage(message), false);
 });
 
+test("isBackgroundMessage accepts entries/insert with a fallback flag", () => {
+    const message = {
+        id: "msg-18",
+        type: "entries/insert",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1",
+            fallbackToClipboard: true
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage rejects entries/insert with unexpected payload keys", () => {
+    const message = {
+        id: "msg-19",
+        type: "entries/insert",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1",
+            extra: true
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});
+
 test("isBackgroundMessage accepts entries/reorder with valid payload", () => {
     const message = {
         id: "msg-18",

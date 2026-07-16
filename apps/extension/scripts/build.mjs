@@ -13,7 +13,8 @@ await build({
         rollupOptions: {
             input: {
                 popup: resolve(packageDir, "popup.html"),
-                serviceWorker: resolve(packageDir, "src/background/serviceWorker.ts")
+                serviceWorker: resolve(packageDir, "src/background/serviceWorker.ts"),
+                contentScript: resolve(packageDir, "src/content/contentScript.ts")
             },
             output: {
                 entryFileNames: "[name].js",

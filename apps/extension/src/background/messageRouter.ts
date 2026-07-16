@@ -1,6 +1,7 @@
 import type { BackgroundMessage, VaultEntry, VaultGetStatusMessage, VaultPreferences } from "@encrypted-id-vault/shared";
 
 import type { VaultLifecycle } from "./vaultLifecycle";
+import { insertEntryById, type InsertEntryByIdResult } from "./insertionEngine";
 
 export type RuntimeStateSnapshot = {
     installedAt: string | null;
@@ -39,6 +40,11 @@ export type BackgroundResponse =
         deletedEntryId: string;
     }
     | {
+        ok: true;
+        insertedEntryId: string;
+        insertionMode: "insert" | "clipboard";
+    }
+    | {
         ok: false;
         error:
         | "ERR_UNHANDLED_MESSAGE"
@@ -46,7 +52,14 @@ export type BackgroundResponse =
         | "ERR_VAULT_ALREADY_EXISTS"
         | "ERR_VAULT_NOT_FOUND"
         | "ERR_VAULT_LOCKED"
-        | "ERR_ENTRY_NOT_FOUND";
+        | "ERR_ENTRY_NOT_FOUND"
+        | "ERR_ENTRY_INSERT_DISABLED"
+        | "ERR_ENTRY_COPY_DISABLED"
+        | "ERR_NO_ACTIVE_TAB"
+        | "ERR_INSERT_NO_FOCUSED_FIELD"
+        | "ERR_INSERT_UNSUPPORTED_ELEMENT"
+        | "ERR_INSERT_DOMAIN_NOT_ALLOWED"
+        | "ERR_INSERT_CLIPBOARD_UNAVAILABLE";
     };
 
 async function applyLifecycleResult(
@@ -66,7 +79,8 @@ export async function routeBackgroundMessage(
     message: BackgroundMessage,
     runtimeState: RuntimeStateSnapshot,
     createStatusMessage: () => VaultGetStatusMessage,
-    vaultLifecycle: VaultLifecycle
+    vaultLifecycle: VaultLifecycle,
+    insertEntry: typeof insertEntryById = insertEntryById
 ): Promise<BackgroundResponse> {
     switch (message.type) {
         case "vault/getStatus":
@@ -146,6 +160,23 @@ export async function routeBackgroundMessage(
             }
 
             return { ok: true, entry: result.entry };
+        }
+        case "entries/insert": {
+            const result = await insertEntry({
+                entryId: message.payload.entryId,
+                fallbackToClipboard: message.payload.fallbackToClipboard,
+                vaultLifecycle
+            });
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            return {
+                ok: true,
+                insertedEntryId: result.insertedEntryId,
+                insertionMode: result.insertionMode
+            };
         }
         default:
             return { ok: false, error: "ERR_UNHANDLED_MESSAGE" };

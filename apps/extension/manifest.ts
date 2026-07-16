@@ -5,11 +5,19 @@ export const manifest = {
     action: {
         default_title: "Encrypted ID Vault"
     },
+    content_scripts: [
+        {
+            matches: ["http://*/*", "https://*/*"],
+            js: ["contentScript.js"],
+            all_frames: true,
+            run_at: "document_idle"
+        }
+    ],
     background: {
         service_worker: "src/background/serviceWorker.ts",
         type: "module"
     },
-    permissions: ["storage", "contextMenus", "alarms"],
+    permissions: ["storage", "contextMenus", "alarms", "tabs"],
     commands: {
         "open-vault-popup": {
             suggested_key: {
@@ -24,6 +32,6 @@ export const manifest = {
             description: "Insert selected entry into focused field"
         }
     },
-    host_permissions: [],
+    host_permissions: ["http://*/*", "https://*/*"],
     minimum_chrome_version: "120"
 } as const;

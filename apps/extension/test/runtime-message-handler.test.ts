@@ -174,3 +174,29 @@ test("handleRuntimeMessage routes valid getStatus messages", async () => {
 
     assert.fail("Expected status response");
 });
+
+test("handleRuntimeMessage routes valid entries/insert messages", async () => {
+    const runtimeState = createRuntimeState();
+    const result = await handleRuntimeMessage(
+        {
+            id: "msg-4",
+            type: "entries/insert",
+            source: "popup",
+            target: "background",
+            payload: {
+                entryId: "entry-1"
+            }
+        },
+        runtimeState,
+        createStatusMessage,
+        createVaultLifecycle(),
+        "2026-07-16T00:05:00.000Z",
+        async () => ({ ok: true, insertedEntryId: "entry-1", insertionMode: "insert" })
+    );
+
+    assert.equal(result.ok, true);
+    if (result.ok) {
+        assert.equal(result.insertedEntryId, "entry-1");
+        assert.equal(result.insertionMode, "insert");
+    }
+});

@@ -2,6 +2,7 @@ import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vau
 import type { VaultPreferences } from "@encrypted-id-vault/shared";
 
 import { createMessageEnvelope } from "@encrypted-id-vault/security";
+import { getRememberedSelectedEntryId, insertEntryById } from "./insertionEngine";
 import { getCommandTriggerSource, getContextMenuTriggerSource } from "./triggerSource";
 import { handleRuntimeMessage } from "./runtimeMessageHandler";
 import { createVaultLifecycle } from "./vaultLifecycle";
@@ -86,6 +87,33 @@ function createContextMenus(): void {
     });
 }
 
+async function openPopup(): Promise<void> {
+    try {
+        await chrome.action.openPopup();
+    } catch (error) {
+        console.info("[Encrypted ID Vault] Unable to open popup", error);
+    }
+}
+
+async function insertRememberedEntry(frameId?: number): Promise<void> {
+    const rememberedEntryId = await getRememberedSelectedEntryId();
+
+    if (!rememberedEntryId) {
+        await openPopup();
+        return;
+    }
+
+    const result = await insertEntryById({
+        entryId: rememberedEntryId,
+        frameId,
+        vaultLifecycle
+    });
+
+    if (!result.ok) {
+        console.info(`[Encrypted ID Vault] Insert failed: ${result.error}`);
+    }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
     const installedAt = new Date().toISOString();
 
@@ -158,7 +186,15 @@ chrome.commands.onCommand.addListener((command) => {
 
     if (triggerSource) {
         runtimeState.lastUserTrigger = triggerSource;
-        console.info(`[Encrypted ID Vault] Command received (placeholder): ${command}`);
+
+        void (async () => {
+            if (command === COMMAND_IDS.openVaultPopup) {
+                await openPopup();
+                return;
+            }
+
+            await insertRememberedEntry();
+        })();
     }
 });
 
@@ -169,7 +205,7 @@ chrome.contextMenus.onClicked.addListener((info) => {
 
     if (triggerSource) {
         runtimeState.lastUserTrigger = triggerSource;
-        console.info("[Encrypted ID Vault] Context menu clicked (placeholder): insert-selected-entry");
+        void insertRememberedEntry(info.frameId);
     }
 });
 

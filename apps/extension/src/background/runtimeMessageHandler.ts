@@ -16,12 +16,13 @@ export async function handleRuntimeMessage(
     runtimeState: RuntimeStateSnapshot,
     createStatusMessage: () => VaultGetStatusMessage,
     vaultLifecycle: VaultLifecycle,
-    nowIso: string
+    nowIso: string,
+    insertEntry?: Parameters<typeof routeBackgroundMessage>[4]
 ): Promise<RuntimeMessageResponse> {
     if (!isBackgroundMessage(message)) {
         return { ok: false, error: "ERR_INVALID_MESSAGE" };
     }
 
     runtimeState.lastMessageAt = nowIso;
-    return routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle);
+    return routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle, insertEntry);
 }

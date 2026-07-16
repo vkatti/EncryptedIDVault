@@ -4,10 +4,13 @@ import type {
     ListEntriesPayload,
     MessageEnvelope,
     MessageTarget,
+    InsertEntryPayload,
+    InsertTargetMessage,
     UpdateEntryPayload,
     EntriesCreateMessage,
     EntriesDeleteMessage,
     EntriesListMessage,
+    EntriesInsertMessage,
     EntriesReorderMessage,
     EntriesUpdateMessage,
     VaultCreateMessage,
@@ -29,6 +32,8 @@ const ENTRY_UPDATE_KEYS = ["entryId", "label", "value", "category", "notes", "fa
 const ENTRY_LIST_KEYS = ["query", "favoritesOnly"] as const;
 const ENTRY_DELETE_KEYS = ["entryId"] as const;
 const ENTRY_REORDER_KEYS = ["entryId", "targetIndex"] as const;
+const ENTRY_INSERT_KEYS = ["entryId", "fallbackToClipboard"] as const;
+const INSERT_TARGET_KEYS = ["entryId", "value", "domainAllowlist", "fallbackToClipboard", "frameId"] as const;
 
 type RoutedBackgroundMessage =
     | VaultGetStatusMessage
@@ -84,6 +89,10 @@ function isOptionalString(value: unknown): value is string | undefined {
 
 function isOptionalBoolean(value: unknown): value is boolean | undefined {
     return value === undefined || typeof value === "boolean";
+}
+
+function isOptionalNumber(value: unknown): value is number | undefined {
+    return value === undefined || typeof value === "number";
 }
 
 function isOptionalStringArray(value: unknown): value is string[] | undefined {
@@ -175,6 +184,40 @@ function isReorderEntryPayload(payload: unknown): payload is { entryId: string; 
     );
 }
 
+function isInsertEntryPayload(payload: unknown): payload is InsertEntryPayload {
+    if (!isRecord(payload)) {
+        return false;
+    }
+
+    if (!Object.keys(payload).every((key) => (ENTRY_INSERT_KEYS as readonly string[]).includes(key))) {
+        return false;
+    }
+
+    return isNonEmptyString(payload.entryId) && isOptionalBoolean(payload.fallbackToClipboard);
+}
+
+export function isInsertTargetMessage(value: unknown): value is InsertTargetMessage {
+    if (!isMessageEnvelope(value) || value.source !== "background" || value.target !== "content-script" || value.type !== "insert/target") {
+        return false;
+    }
+
+    if (!isRecord(value.payload)) {
+        return false;
+    }
+
+    if (!Object.keys(value.payload).every((key) => (INSERT_TARGET_KEYS as readonly string[]).includes(key))) {
+        return false;
+    }
+
+    return (
+        isNonEmptyString(value.payload.entryId) &&
+        isNonEmptyString(value.payload.value) &&
+        isOptionalStringArray(value.payload.domainAllowlist) &&
+        isOptionalBoolean(value.payload.fallbackToClipboard) &&
+        isOptionalNumber(value.payload.frameId)
+    );
+}
+
 export function isVaultGetStatusMessage(value: unknown): value is VaultGetStatusMessage {
     return isBackgroundRoutedEnvelope(value) && value.type === "vault/getStatus" && isRecord(value.payload) && hasOnlyKeys(value.payload, []);
 }
@@ -256,6 +299,10 @@ export function isEntriesReorderMessage(value: unknown): value is EntriesReorder
     return isBackgroundRoutedEnvelope(value) && value.type === "entries/reorder" && isReorderEntryPayload(value.payload);
 }
 
+export function isEntriesInsertMessage(value: unknown): value is EntriesInsertMessage {
+    return isBackgroundRoutedEnvelope(value) && value.type === "entries/insert" && isInsertEntryPayload(value.payload);
+}
+
 export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMessage {
     return (
         isVaultGetStatusMessage(value) ||
@@ -267,7 +314,8 @@ export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMe
         isEntriesCreateMessage(value) ||
         isEntriesUpdateMessage(value) ||
         isEntriesDeleteMessage(value) ||
-        isEntriesReorderMessage(value)
+        isEntriesReorderMessage(value) ||
+        isEntriesInsertMessage(value)
     );
 }
 

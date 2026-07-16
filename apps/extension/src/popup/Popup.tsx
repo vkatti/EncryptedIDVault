@@ -42,6 +42,13 @@ type EntryMutationResponse = {
     error?: string;
 };
 
+type InsertResponse = {
+    ok: boolean;
+    insertedEntryId?: string;
+    insertionMode?: "insert" | "clipboard";
+    error?: string;
+};
+
 type Action = "vault/getStatus" | "vault/create" | "vault/unlock" | "vault/lock";
 type PreferenceField = keyof VaultPreferences;
 
@@ -160,6 +167,18 @@ async function reorderEntryMessage(payload: { entryId: string; targetIndex: numb
             payload
         })
     )) as EntryMutationResponse;
+}
+
+async function insertEntryMessage(payload: { entryId: string }): Promise<InsertResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "entries/insert",
+            source: "popup",
+            target: "background",
+            payload
+        })
+    )) as InsertResponse;
 }
 
 const DEFAULT_PREFERENCES: VaultPreferences = {
@@ -400,6 +419,21 @@ export function Popup() {
         setBusy(false);
     }, [loadEntries]);
 
+    const insertEntry = React.useCallback(async (entryId: string) => {
+        setBusy(true);
+        const response = await insertEntryMessage({ entryId });
+
+        if (!response.ok) {
+            setError(response.error ?? "Unable to insert entry");
+            setBusy(false);
+            return;
+        }
+
+        setError(null);
+        await refreshStatus();
+        setBusy(false);
+    }, [refreshStatus]);
+
     return (
         <main>
             <h1>Encrypted ID Vault</h1>
@@ -592,6 +626,9 @@ export function Popup() {
                                     <p>Favorite: {entry.favorite ? "yes" : "no"}</p>
                                     <button type="button" disabled={busy} onClick={() => startEditingEntry(entry)}>
                                         Edit entry
+                                    </button>
+                                    <button type="button" disabled={busy} onClick={() => void insertEntry(entry.id)}>
+                                        Insert entry
                                     </button>
                                     <button
                                         type="button"

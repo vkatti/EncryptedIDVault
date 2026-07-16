@@ -73,7 +73,10 @@ export interface InsertEntryPayload {
 }
 
 export interface InsertTargetPayload {
-    tabId: number;
+    entryId: string;
+    value: string;
+    domainAllowlist?: string[];
+    fallbackToClipboard?: boolean;
     frameId?: number;
 }
 

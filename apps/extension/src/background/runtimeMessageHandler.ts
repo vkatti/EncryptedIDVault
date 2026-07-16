@@ -2,6 +2,7 @@ import type { VaultGetStatusMessage } from "@encrypted-id-vault/shared";
 
 import { isBackgroundMessage } from "@encrypted-id-vault/security";
 import { routeBackgroundMessage, type BackgroundResponse, type RuntimeStateSnapshot } from "./messageRouter";
+import type { VaultLifecycle } from "./vaultLifecycle";
 
 type InvalidMessageResponse = {
     ok: false;
@@ -10,16 +11,17 @@ type InvalidMessageResponse = {
 
 export type RuntimeMessageResponse = BackgroundResponse | InvalidMessageResponse;
 
-export function handleRuntimeMessage(
+export async function handleRuntimeMessage(
     message: unknown,
     runtimeState: RuntimeStateSnapshot,
     createStatusMessage: () => VaultGetStatusMessage,
+    vaultLifecycle: VaultLifecycle,
     nowIso: string
-): RuntimeMessageResponse {
+): Promise<RuntimeMessageResponse> {
     if (!isBackgroundMessage(message)) {
         return { ok: false, error: "ERR_INVALID_MESSAGE" };
     }
 
     runtimeState.lastMessageAt = nowIso;
-    return routeBackgroundMessage(message, runtimeState, createStatusMessage);
+    return routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle);
 }

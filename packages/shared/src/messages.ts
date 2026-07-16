@@ -22,6 +22,10 @@ export interface UnlockVaultPayload {
     masterPassword: string;
 }
 
+export interface CreateVaultPayload {
+    masterPassword: string;
+}
+
 export interface LockVaultPayload {
     reason: "manual" | "timeout" | "restart";
 }
@@ -46,6 +50,7 @@ export interface SyncProviderPayload {
 }
 
 export type VaultGetStatusMessage = MessageEnvelope<"vault/getStatus", EmptyPayload>;
+export type VaultCreateMessage = MessageEnvelope<"vault/create", CreateVaultPayload>;
 export type VaultUnlockMessage = MessageEnvelope<"vault/unlock", UnlockVaultPayload>;
 export type VaultLockMessage = MessageEnvelope<"vault/lock", LockVaultPayload>;
 export type EntriesListMessage = MessageEnvelope<"entries/list", ListEntriesPayload>;
@@ -55,6 +60,7 @@ export type SyncConnectProviderMessage = MessageEnvelope<"sync/connectProvider",
 
 export type BackgroundMessage =
     | VaultGetStatusMessage
+    | VaultCreateMessage
     | VaultUnlockMessage
     | VaultLockMessage
     | EntriesListMessage

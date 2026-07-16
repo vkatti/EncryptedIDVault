@@ -4,6 +4,7 @@ import test from "node:test";
 import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vault/shared";
 
 import { routeBackgroundMessage, type RuntimeStateSnapshot } from "../src/background/messageRouter";
+import type { VaultLifecycle } from "../src/background/vaultLifecycle";
 
 function createRuntimeState(): RuntimeStateSnapshot {
     return {
@@ -25,8 +26,30 @@ function createStatusMessage(): VaultGetStatusMessage {
     };
 }
 
-test("routeBackgroundMessage returns status payload for vault/getStatus", () => {
+function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecycle {
+    return {
+        async initialize() {
+            return { hasVault: false, locked: true };
+        },
+        getStatus() {
+            return { hasVault: false, locked: true };
+        },
+        async createVault() {
+            return { ok: true, hasVault: true, locked: false };
+        },
+        async unlockVault() {
+            return { ok: true, hasVault: true, locked: false };
+        },
+        async lockVault() {
+            return { ok: true, hasVault: true, locked: true };
+        },
+        ...overrides
+    };
+}
+
+test("routeBackgroundMessage returns status payload for vault/getStatus", async () => {
     const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
     const message = {
         id: "message-1",
         type: "vault/getStatus",
@@ -35,7 +58,7 @@ test("routeBackgroundMessage returns status payload for vault/getStatus", () => 
         payload: {}
     } satisfies BackgroundMessage;
 
-    const result = routeBackgroundMessage(message, runtimeState, createStatusMessage);
+    const result = await routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle);
 
     assert.equal(result.ok, true);
     if ("state" in result) {
@@ -46,8 +69,23 @@ test("routeBackgroundMessage returns status payload for vault/getStatus", () => 
     }
 });
 
-test("routeBackgroundMessage mutates lock state for vault/unlock and vault/lock", () => {
+test("routeBackgroundMessage mutates lock state for vault/create, vault/unlock and vault/lock", async () => {
     const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
+
+    const createMessage = {
+        id: "message-0",
+        type: "vault/create",
+        source: "popup",
+        target: "background",
+        payload: { masterPassword: "demo-password" }
+    } satisfies BackgroundMessage;
+
+    const createResult = await routeBackgroundMessage(createMessage, runtimeState, createStatusMessage, vaultLifecycle);
+
+    assert.equal(createResult.ok, true);
+    assert.equal(runtimeState.hasVault, true);
+    assert.equal(runtimeState.locked, false);
 
     const unlockMessage = {
         id: "message-2",
@@ -57,7 +95,7 @@ test("routeBackgroundMessage mutates lock state for vault/unlock and vault/lock"
         payload: { masterPassword: "demo-password" }
     } satisfies BackgroundMessage;
 
-    const unlockResult = routeBackgroundMessage(unlockMessage, runtimeState, createStatusMessage);
+    const unlockResult = await routeBackgroundMessage(unlockMessage, runtimeState, createStatusMessage, vaultLifecycle);
 
     assert.equal(unlockResult.ok, true);
     assert.equal(runtimeState.locked, false);
@@ -70,14 +108,15 @@ test("routeBackgroundMessage mutates lock state for vault/unlock and vault/lock"
         payload: { reason: "manual" }
     } satisfies BackgroundMessage;
 
-    const lockResult = routeBackgroundMessage(lockMessage, runtimeState, createStatusMessage);
+    const lockResult = await routeBackgroundMessage(lockMessage, runtimeState, createStatusMessage, vaultLifecycle);
 
     assert.equal(lockResult.ok, true);
     assert.equal(runtimeState.locked, true);
 });
 
-test("routeBackgroundMessage rejects unhandled but schema-valid messages", () => {
+test("routeBackgroundMessage rejects unhandled but schema-valid messages", async () => {
     const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
     const message = {
         id: "message-4",
         type: "entries/list",
@@ -86,7 +125,7 @@ test("routeBackgroundMessage rejects unhandled but schema-valid messages", () =>
         payload: {}
     } satisfies BackgroundMessage;
 
-    const result = routeBackgroundMessage(message, runtimeState, createStatusMessage);
+    const result = await routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle);
 
     assert.deepEqual(result, { ok: false, error: "ERR_UNHANDLED_MESSAGE" });
 });

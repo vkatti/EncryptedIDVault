@@ -1,5 +1,7 @@
 import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vault/shared";
 
+import type { VaultLifecycle } from "./vaultLifecycle";
+
 export type RuntimeStateSnapshot = {
     installedAt: string | null;
     lastMessageAt: string | null;
@@ -20,50 +22,48 @@ export type BackgroundResponse =
     }
     | {
         ok: false;
-        error: "ERR_UNHANDLED_MESSAGE";
+        error: "ERR_UNHANDLED_MESSAGE" | "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_VAULT_ALREADY_EXISTS" | "ERR_VAULT_NOT_FOUND";
     };
 
-type HandledMessageType = "vault/getStatus" | "vault/lock" | "vault/unlock";
-
-type HandlerContext = {
-    runtimeState: RuntimeStateSnapshot;
-    createStatusMessage: () => VaultGetStatusMessage;
-};
-
-const handlers: Record<HandledMessageType, (context: HandlerContext) => BackgroundResponse> = {
-    "vault/getStatus": ({ runtimeState, createStatusMessage }) => ({
-        ok: true,
-        message: createStatusMessage(),
-        state: {
-            installedAt: runtimeState.installedAt,
-            locked: runtimeState.locked,
-            hasVault: runtimeState.hasVault,
-            lastMessageAt: runtimeState.lastMessageAt,
-            lastUserTrigger: runtimeState.lastUserTrigger
-        }
-    }),
-    "vault/lock": ({ runtimeState }) => {
-        runtimeState.locked = true;
-        return { ok: true, locked: true };
-    },
-    "vault/unlock": ({ runtimeState }) => {
-        runtimeState.locked = false;
-        return { ok: true, locked: false };
+async function applyLifecycleResult(
+    result: Awaited<ReturnType<VaultLifecycle["createVault"]>>,
+    runtimeState: RuntimeStateSnapshot
+): Promise<BackgroundResponse> {
+    if (!result.ok) {
+        return { ok: false, error: result.error };
     }
-};
 
-function isHandledMessageType(type: BackgroundMessage["type"]): type is HandledMessageType {
-    return type in handlers;
+    runtimeState.hasVault = result.hasVault;
+    runtimeState.locked = result.locked;
+    return { ok: true, locked: result.locked };
 }
 
-export function routeBackgroundMessage(
+export async function routeBackgroundMessage(
     message: BackgroundMessage,
     runtimeState: RuntimeStateSnapshot,
-    createStatusMessage: () => VaultGetStatusMessage
-): BackgroundResponse {
-    if (!isHandledMessageType(message.type)) {
-        return { ok: false, error: "ERR_UNHANDLED_MESSAGE" };
+    createStatusMessage: () => VaultGetStatusMessage,
+    vaultLifecycle: VaultLifecycle
+): Promise<BackgroundResponse> {
+    switch (message.type) {
+        case "vault/getStatus":
+            return {
+                ok: true,
+                message: createStatusMessage(),
+                state: {
+                    installedAt: runtimeState.installedAt,
+                    locked: runtimeState.locked,
+                    hasVault: runtimeState.hasVault,
+                    lastMessageAt: runtimeState.lastMessageAt,
+                    lastUserTrigger: runtimeState.lastUserTrigger
+                }
+            };
+        case "vault/create":
+            return applyLifecycleResult(await vaultLifecycle.createVault(message.payload.masterPassword), runtimeState);
+        case "vault/unlock":
+            return applyLifecycleResult(await vaultLifecycle.unlockVault(message.payload.masterPassword), runtimeState);
+        case "vault/lock":
+            return applyLifecycleResult(await vaultLifecycle.lockVault(), runtimeState);
+        default:
+            return { ok: false, error: "ERR_UNHANDLED_MESSAGE" };
     }
-
-    return handlers[message.type]({ runtimeState, createStatusMessage });
 }

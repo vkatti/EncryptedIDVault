@@ -8,8 +8,10 @@
         "typecheck": "tsc -p tsconfig.json"
     },
     "dependencies": {
+        "@encrypted-id-vault/crypto": "file:../../packages/crypto",
         "@encrypted-id-vault/security": "file:../../packages/security",
         "@encrypted-id-vault/shared": "file:../../packages/shared",
+        "@encrypted-id-vault/vault": "file:../../packages/vault",
         "react": "^19.1.1",
         "react-dom": "^19.1.1"
     },

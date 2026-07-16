@@ -3,6 +3,7 @@ import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vau
 import { createMessageEnvelope } from "@encrypted-id-vault/security";
 import { getCommandTriggerSource, getContextMenuTriggerSource } from "./triggerSource";
 import { handleRuntimeMessage } from "./runtimeMessageHandler";
+import { createVaultLifecycle } from "./vaultLifecycle";
 
 type ExtensionRuntimeState = {
     installedAt: string | null;
@@ -20,6 +21,8 @@ const runtimeState: ExtensionRuntimeState = {
     hasVault: false
 };
 
+const vaultLifecycle = createVaultLifecycle();
+
 const COMMAND_IDS = {
     openVaultPopup: "open-vault-popup",
     insertSelectedEntry: "insert-selected-entry"
@@ -32,6 +35,12 @@ const CONTEXT_MENU_IDS = {
 async function loadInstalledAt(): Promise<void> {
     const stored = await chrome.storage.local.get(["installedAt"]);
     runtimeState.installedAt = typeof stored.installedAt === "string" ? stored.installedAt : null;
+}
+
+async function loadVaultStatus(): Promise<void> {
+    const state = await vaultLifecycle.initialize();
+    runtimeState.hasVault = state.hasVault;
+    runtimeState.locked = state.locked;
 }
 
 function createStatusMessage(): VaultGetStatusMessage {
@@ -58,20 +67,25 @@ chrome.runtime.onInstalled.addListener(() => {
     const installedAt = new Date().toISOString();
 
     runtimeState.installedAt = installedAt;
+    runtimeState.locked = true;
+    runtimeState.hasVault = false;
     void chrome.storage.local.set({ installedAt });
     createContextMenus();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-    runtimeState.locked = true;
     runtimeState.lastMessageAt = null;
     runtimeState.lastUserTrigger = null;
     void loadInstalledAt();
+    void loadVaultStatus();
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-    sendResponse(handleRuntimeMessage(message, runtimeState, createStatusMessage, new Date().toISOString()));
-    return false;
+    void (async () => {
+        const response = await handleRuntimeMessage(message, runtimeState, createStatusMessage, vaultLifecycle, new Date().toISOString());
+        sendResponse(response);
+    })();
+    return true;
 });
 
 chrome.commands.onCommand.addListener((command) => {
@@ -97,3 +111,4 @@ chrome.contextMenus.onClicked.addListener((info) => {
 });
 
 void loadInstalledAt();
+void loadVaultStatus();

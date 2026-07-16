@@ -2,6 +2,7 @@ import type {
     ErrorCode,
     MessageEnvelope,
     MessageTarget,
+    VaultCreateMessage,
     VaultGetStatusMessage,
     VaultLockMessage,
     VaultUnlockMessage
@@ -14,7 +15,7 @@ export type { ErrorCode } from "@encrypted-id-vault/shared";
 const MESSAGE_TARGETS: readonly MessageTarget[] = ["background", "popup", "options", "content-script"] as const;
 const LOCK_REASONS = ["manual", "timeout", "restart"] as const;
 
-type RoutedBackgroundMessage = VaultGetStatusMessage | VaultUnlockMessage | VaultLockMessage;
+type RoutedBackgroundMessage = VaultGetStatusMessage | VaultCreateMessage | VaultUnlockMessage | VaultLockMessage;
 
 export function isErrorCode(value: unknown): value is ErrorCode {
     return typeof value === "string" && (ERROR_CODES as readonly string[]).includes(value);
@@ -67,6 +68,17 @@ export function isVaultUnlockMessage(value: unknown): value is VaultUnlockMessag
     );
 }
 
+export function isVaultCreateMessage(value: unknown): value is VaultCreateMessage {
+    return (
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "vault/create" &&
+        isRecord(value.payload) &&
+        hasOnlyKeys(value.payload, ["masterPassword"]) &&
+        typeof value.payload.masterPassword === "string" &&
+        value.payload.masterPassword.trim().length > 0
+    );
+}
+
 export function isVaultLockMessage(value: unknown): value is VaultLockMessage {
     return (
         isBackgroundRoutedEnvelope(value) &&
@@ -79,7 +91,7 @@ export function isVaultLockMessage(value: unknown): value is VaultLockMessage {
 }
 
 export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMessage {
-    return isVaultGetStatusMessage(value) || isVaultUnlockMessage(value) || isVaultLockMessage(value);
+    return isVaultGetStatusMessage(value) || isVaultCreateMessage(value) || isVaultUnlockMessage(value) || isVaultLockMessage(value);
 }
 
 export function createMessageEnvelope<TType extends string, TPayload>(params: {

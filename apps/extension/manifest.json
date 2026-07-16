@@ -11,9 +11,7 @@
         "type": "module"
     },
     "permissions": [
-        "storage",
-        "activeTab",
-        "scripting"
+        "storage"
     ],
     "host_permissions": [],
     "minimum_chrome_version": "120"

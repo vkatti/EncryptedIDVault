@@ -9,7 +9,7 @@ export const manifest = {
         service_worker: "src/background/serviceWorker.ts",
         type: "module"
     },
-    permissions: ["storage", "activeTab", "scripting"],
+    permissions: ["storage"],
     host_permissions: [],
     minimum_chrome_version: "120"
 } as const;

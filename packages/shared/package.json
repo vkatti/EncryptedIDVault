@@ -2,6 +2,7 @@
     "name": "@encrypted-id-vault/shared",
     "private": true,
     "type": "module",
+    "types": "./src/index.ts",
     "scripts": {
         "typecheck": "tsc -p tsconfig.json"
     },

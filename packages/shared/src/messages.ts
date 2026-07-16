@@ -1,48 +1,48 @@
 export type MessageTarget = "background" | "popup" | "options" | "content-script";
 
 export interface MessageEnvelope<TType extends string, TPayload> {
-  id: string;
-  type: TType;
-  source: MessageTarget;
-  target: MessageTarget;
-  payload: TPayload;
+    id: string;
+    type: TType;
+    source: MessageTarget;
+    target: MessageTarget;
+    payload: TPayload;
 }
 
 export interface EmptyPayload {
-  readonly [key: string]: never;
+    readonly [key: string]: never;
 }
 
 export interface VaultStatusPayload {
-  locked: boolean;
-  hasVault: boolean;
-  lastUnlockedAt?: string;
+    locked: boolean;
+    hasVault: boolean;
+    lastUnlockedAt?: string;
 }
 
 export interface UnlockVaultPayload {
-  masterPassword: string;
+    masterPassword: string;
 }
 
 export interface LockVaultPayload {
-  reason: "manual" | "timeout" | "restart";
+    reason: "manual" | "timeout" | "restart";
 }
 
 export interface ListEntriesPayload {
-  query?: string;
-  favoritesOnly?: boolean;
+    query?: string;
+    favoritesOnly?: boolean;
 }
 
 export interface InsertEntryPayload {
-  entryId: string;
-  fallbackToClipboard?: boolean;
+    entryId: string;
+    fallbackToClipboard?: boolean;
 }
 
 export interface InsertTargetPayload {
-  tabId: number;
-  frameId?: number;
+    tabId: number;
+    frameId?: number;
 }
 
 export interface SyncProviderPayload {
-  provider: "drive" | "dropbox";
+    provider: "drive" | "dropbox";
 }
 
 export type VaultGetStatusMessage = MessageEnvelope<"vault/getStatus", EmptyPayload>;
@@ -54,10 +54,10 @@ export type InsertTargetMessage = MessageEnvelope<"insert/target", InsertTargetP
 export type SyncConnectProviderMessage = MessageEnvelope<"sync/connectProvider", SyncProviderPayload>;
 
 export type BackgroundMessage =
-  | VaultGetStatusMessage
-  | VaultUnlockMessage
-  | VaultLockMessage
-  | EntriesListMessage
-  | EntriesInsertMessage
-  | InsertTargetMessage
-  | SyncConnectProviderMessage;
+    | VaultGetStatusMessage
+    | VaultUnlockMessage
+    | VaultLockMessage
+    | EntriesListMessage
+    | EntriesInsertMessage
+    | InsertTargetMessage
+    | SyncConnectProviderMessage;

@@ -12,7 +12,8 @@
     },
     "permissions": [
         "storage",
-        "contextMenus"
+        "contextMenus",
+        "alarms"
     ],
     "commands": {
         "open-vault-popup": {

@@ -9,7 +9,7 @@ export const manifest = {
         service_worker: "src/background/serviceWorker.ts",
         type: "module"
     },
-    permissions: ["storage", "contextMenus"],
+    permissions: ["storage", "contextMenus", "alarms"],
     commands: {
         "open-vault-popup": {
             suggested_key: {

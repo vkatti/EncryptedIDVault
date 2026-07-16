@@ -75,6 +75,18 @@ test("isBackgroundMessage rejects extra payload keys", () => {
     assert.equal(isBackgroundMessage(message), false);
 });
 
+test("isBackgroundMessage accepts valid vault/create envelopes", () => {
+    const message = {
+        id: "msg-6b",
+        type: "vault/create",
+        source: "popup",
+        target: "background",
+        payload: { masterPassword: "correct horse battery staple" }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
 test("isBackgroundMessage rejects messages from non-popup sources", () => {
     const message = {
         id: "msg-7",
@@ -106,6 +118,18 @@ test("isBackgroundMessage rejects messages with a blank type", () => {
         source: "popup",
         target: "background",
         payload: {}
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});
+
+test("isBackgroundMessage rejects vault/create with blank password", () => {
+    const message = {
+        id: "msg-10",
+        type: "vault/create",
+        source: "popup",
+        target: "background",
+        payload: { masterPassword: "   " }
     };
 
     assert.equal(isBackgroundMessage(message), false);

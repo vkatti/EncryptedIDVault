@@ -18,6 +18,7 @@ test("manifest declares context menu capability", async () => {
 
     assert.ok(Array.isArray(manifest.permissions));
     assert.ok(manifest.permissions.includes("contextMenus"));
+    assert.ok(manifest.permissions.includes("alarms"));
 });
 
 test("manifest declares expected keyboard commands", async () => {

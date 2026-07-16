@@ -4,8 +4,6 @@ import { createVaultDocument, createVaultRepository, type VaultRecordStore, type
 
 const VAULT_STORAGE_KEY = "vaultEnvelope";
 
-type TimerRef = ReturnType<typeof setTimeout>;
-
 export type VaultLifecycleError = "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_VAULT_ALREADY_EXISTS" | "ERR_VAULT_NOT_FOUND";
 
 export type VaultLifecycleResult =
@@ -22,6 +20,7 @@ export type VaultLifecycleResult =
 export interface VaultLifecycle {
     initialize(): Promise<{ hasVault: boolean; locked: boolean }>;
     getStatus(): { hasVault: boolean; locked: boolean };
+    getAutoLockMinutes(): number | null;
     createVault(masterPassword: string): Promise<VaultLifecycleResult>;
     unlockVault(masterPassword: string): Promise<VaultLifecycleResult>;
     lockVault(): Promise<VaultLifecycleResult>;
@@ -47,42 +46,15 @@ export function createVaultLifecycle(options?: {
     repository?: VaultRepository;
     now?: () => string;
     createVaultId?: () => string;
-    setTimer?: typeof setTimeout;
-    clearTimer?: typeof clearTimeout;
 }): VaultLifecycle {
     const repository = options?.repository ?? createVaultRepository(createChromeVaultRecordStore());
     const now = options?.now ?? (() => new Date().toISOString());
     const createVaultId = options?.createVaultId ?? (() => crypto.randomUUID());
-    const setTimerFn = options?.setTimer ?? setTimeout;
-    const clearTimerFn = options?.clearTimer ?? clearTimeout;
 
     let hasVault = false;
     let unlockedDocument: VaultDocument | null = null;
-    let autoLockTimer: TimerRef | null = null;
-
-    const clearAutoLockTimer = () => {
-        if (autoLockTimer !== null) {
-            clearTimerFn(autoLockTimer);
-            autoLockTimer = null;
-        }
-    };
-
-    const scheduleAutoLock = () => {
-        clearAutoLockTimer();
-
-        const minutes = unlockedDocument?.preferences.autoLockMinutes ?? 5;
-
-        if (minutes <= 0) {
-            return;
-        }
-
-        autoLockTimer = setTimerFn(() => {
-            void lockInternal();
-        }, minutes * 60 * 1000) as TimerRef;
-    };
 
     const lockInternal = async (): Promise<VaultLifecycleResult> => {
-        clearAutoLockTimer();
         unlockedDocument = null;
         return { ok: true, hasVault, locked: true };
     };
@@ -91,7 +63,6 @@ export function createVaultLifecycle(options?: {
         async initialize() {
             hasVault = await repository.hasVault();
             unlockedDocument = null;
-            clearAutoLockTimer();
             return { hasVault, locked: true };
         },
         getStatus() {
@@ -99,6 +70,9 @@ export function createVaultLifecycle(options?: {
                 hasVault,
                 locked: unlockedDocument === null
             };
+        },
+        getAutoLockMinutes() {
+            return unlockedDocument?.preferences.autoLockMinutes ?? null;
         },
         async createVault(masterPassword) {
             if (hasVault) {
@@ -111,7 +85,6 @@ export function createVaultLifecycle(options?: {
             await repository.saveEnvelope(envelope);
             hasVault = true;
             unlockedDocument = document;
-            scheduleAutoLock();
 
             return { ok: true, hasVault: true, locked: false };
         },
@@ -132,7 +105,6 @@ export function createVaultLifecycle(options?: {
 
             hasVault = true;
             unlockedDocument = result.value;
-            scheduleAutoLock();
             return { ok: true, hasVault: true, locked: false };
         },
         async lockVault() {

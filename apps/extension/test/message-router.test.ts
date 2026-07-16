@@ -34,6 +34,9 @@ function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecyc
         getStatus() {
             return { hasVault: false, locked: true };
         },
+        getAutoLockMinutes() {
+            return 5;
+        },
         async createVault() {
             return { ok: true, hasVault: true, locked: false };
         },

@@ -22,6 +22,7 @@ const runtimeState: ExtensionRuntimeState = {
 };
 
 const vaultLifecycle = createVaultLifecycle();
+const AUTO_LOCK_ALARM_NAME = "vault-auto-lock";
 
 const COMMAND_IDS = {
     openVaultPopup: "open-vault-popup",
@@ -41,6 +42,21 @@ async function loadVaultStatus(): Promise<void> {
     const state = await vaultLifecycle.initialize();
     runtimeState.hasVault = state.hasVault;
     runtimeState.locked = state.locked;
+}
+
+function clearAutoLockAlarm(): void {
+    void chrome.alarms.clear(AUTO_LOCK_ALARM_NAME);
+}
+
+function scheduleAutoLockAlarm(): void {
+    const minutes = vaultLifecycle.getAutoLockMinutes();
+
+    if (minutes === null || minutes <= 0) {
+        clearAutoLockAlarm();
+        return;
+    }
+
+    chrome.alarms.create(AUTO_LOCK_ALARM_NAME, { delayInMinutes: minutes });
 }
 
 function createStatusMessage(): VaultGetStatusMessage {
@@ -78,14 +94,42 @@ chrome.runtime.onStartup.addListener(() => {
     runtimeState.lastUserTrigger = null;
     void loadInstalledAt();
     void loadVaultStatus();
+    clearAutoLockAlarm();
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
     void (async () => {
         const response = await handleRuntimeMessage(message, runtimeState, createStatusMessage, vaultLifecycle, new Date().toISOString());
+
+        if (response.ok && "locked" in response) {
+            if (response.locked) {
+                clearAutoLockAlarm();
+            } else {
+                scheduleAutoLockAlarm();
+            }
+        }
+
         sendResponse(response);
     })();
     return true;
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name !== AUTO_LOCK_ALARM_NAME || runtimeState.locked) {
+        return;
+    }
+
+    void (async () => {
+        const result = await vaultLifecycle.lockVault();
+
+        if (!result.ok) {
+            return;
+        }
+
+        runtimeState.hasVault = result.hasVault;
+        runtimeState.locked = result.locked;
+        clearAutoLockAlarm();
+    })();
 });
 
 chrome.commands.onCommand.addListener((command) => {
@@ -112,3 +156,4 @@ chrome.contextMenus.onClicked.addListener((info) => {
 
 void loadInstalledAt();
 void loadVaultStatus();
+clearAutoLockAlarm();

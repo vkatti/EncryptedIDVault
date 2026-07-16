@@ -11,12 +11,7 @@ function createLifecycle() {
     return createVaultLifecycle({
         repository,
         now: () => "2026-07-16T10:00:00.000Z",
-        createVaultId: () => "vault-phase1-test",
-        setTimer: ((callback: TimerHandler) => {
-            callback();
-            return 1 as unknown as ReturnType<typeof setTimeout>;
-        }) as typeof setTimeout,
-        clearTimer: (() => undefined) as typeof clearTimeout
+        createVaultId: () => "vault-phase1-test"
     });
 }
 
@@ -31,7 +26,8 @@ test("vault lifecycle creates and persists an encrypted vault", async () => {
 
     const status = lifecycle.getStatus();
     assert.equal(status.hasVault, true);
-    assert.equal(status.locked, true);
+    assert.equal(status.locked, false);
+    assert.equal(lifecycle.getAutoLockMinutes(), 5);
 });
 
 test("vault lifecycle rejects duplicate vault creation", async () => {

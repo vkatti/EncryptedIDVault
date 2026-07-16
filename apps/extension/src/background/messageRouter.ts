@@ -10,18 +10,18 @@ export type RuntimeStateSnapshot = {
 
 type BackgroundResponse =
     | {
-          ok: true;
-          message: VaultGetStatusMessage;
-          state: RuntimeStateSnapshot;
-      }
+        ok: true;
+        message: VaultGetStatusMessage;
+        state: RuntimeStateSnapshot;
+    }
     | {
-          ok: true;
-          locked: boolean;
-      }
+        ok: true;
+        locked: boolean;
+    }
     | {
-          ok: false;
-          error: "ERR_UNHANDLED_MESSAGE";
-      };
+        ok: false;
+        error: "ERR_UNHANDLED_MESSAGE";
+    };
 
 type HandledMessageType = "vault/getStatus" | "vault/lock" | "vault/unlock";
 

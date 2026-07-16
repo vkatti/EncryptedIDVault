@@ -347,3 +347,32 @@ test("vault lifecycle wrong-password unlock does not mutate stored ciphertext", 
     const after = await repository.readEnvelope();
     assert.deepEqual(after, before);
 });
+
+test("vault lifecycle list remains usable with 500 masked entries", async () => {
+    const lifecycle = createLifecycle();
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+
+    for (let index = 0; index < 500; index += 1) {
+        const created = await lifecycle.createEntry({
+            label: `Entry ${index}`,
+            value: `value-${index}-sensitive`,
+            category: index % 2 === 0 ? "identity" : "tax"
+        });
+
+        assert.equal(created.ok, true);
+    }
+
+    const listed = await lifecycle.listEntries();
+    assert.equal(listed.ok, true);
+    if (!listed.ok) {
+        assert.fail("Expected listEntries to succeed");
+    }
+
+    assert.equal(listed.entries.length, 500);
+    for (const entry of listed.entries) {
+        assert.ok(entry.maskedPreview.length > 0);
+        assert.notEqual(entry.maskedPreview, entry.value);
+    }
+});

@@ -28,11 +28,15 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
 }
 
+function isNonEmptyString(value: unknown): value is string {
+    return typeof value === "string" && value.trim().length > 0;
+}
+
 export function isMessageEnvelope(value: unknown): value is MessageEnvelope<string, unknown> {
     return (
         isRecord(value) &&
-        typeof value.id === "string" &&
-        typeof value.type === "string" &&
+        isNonEmptyString(value.id) &&
+        isNonEmptyString(value.type) &&
         isMessageTarget(value.source) &&
         isMessageTarget(value.target) &&
         "payload" in value
@@ -45,7 +49,7 @@ function hasOnlyKeys(record: Record<string, unknown>, keys: readonly string[]): 
 }
 
 function isBackgroundRoutedEnvelope(value: unknown): value is MessageEnvelope<string, unknown> {
-    return isMessageEnvelope(value) && value.target === "background";
+    return isMessageEnvelope(value) && value.source === "popup" && value.target === "background";
 }
 
 export function isVaultGetStatusMessage(value: unknown): value is VaultGetStatusMessage {

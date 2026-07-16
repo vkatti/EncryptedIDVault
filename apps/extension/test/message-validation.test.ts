@@ -74,3 +74,39 @@ test("isBackgroundMessage rejects extra payload keys", () => {
 
     assert.equal(isBackgroundMessage(message), false);
 });
+
+test("isBackgroundMessage rejects messages from non-popup sources", () => {
+    const message = {
+        id: "msg-7",
+        type: "vault/getStatus",
+        source: "content-script",
+        target: "background",
+        payload: {}
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});
+
+test("isBackgroundMessage rejects messages with a blank id", () => {
+    const message = {
+        id: "   ",
+        type: "vault/getStatus",
+        source: "popup",
+        target: "background",
+        payload: {}
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});
+
+test("isBackgroundMessage rejects messages with a blank type", () => {
+    const message = {
+        id: "msg-9",
+        type: "  ",
+        source: "popup",
+        target: "background",
+        payload: {}
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});

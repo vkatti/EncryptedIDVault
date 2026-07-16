@@ -35,6 +35,29 @@ export interface ListEntriesPayload {
     favoritesOnly?: boolean;
 }
 
+export interface CreateEntryPayload {
+    label: string;
+    value: string;
+    category: string;
+    notes?: string;
+    favorite?: boolean;
+    domainAllowlist?: string[];
+    copyModeAllowed?: boolean;
+    insertModeAllowed?: boolean;
+}
+
+export interface UpdateEntryPayload {
+    entryId: string;
+    label?: string;
+    value?: string;
+    category?: string;
+    notes?: string;
+    favorite?: boolean;
+    domainAllowlist?: string[];
+    copyModeAllowed?: boolean;
+    insertModeAllowed?: boolean;
+}
+
 export interface InsertEntryPayload {
     entryId: string;
     fallbackToClipboard?: boolean;
@@ -63,6 +86,8 @@ export type VaultUnlockMessage = MessageEnvelope<"vault/unlock", UnlockVaultPayl
 export type VaultLockMessage = MessageEnvelope<"vault/lock", LockVaultPayload>;
 export type VaultUpdatePreferencesMessage = MessageEnvelope<"vault/updatePreferences", VaultPreferencesUpdatePayload>;
 export type EntriesListMessage = MessageEnvelope<"entries/list", ListEntriesPayload>;
+export type EntriesCreateMessage = MessageEnvelope<"entries/create", CreateEntryPayload>;
+export type EntriesUpdateMessage = MessageEnvelope<"entries/update", UpdateEntryPayload>;
 export type EntriesInsertMessage = MessageEnvelope<"entries/insert", InsertEntryPayload>;
 export type InsertTargetMessage = MessageEnvelope<"insert/target", InsertTargetPayload>;
 export type SyncConnectProviderMessage = MessageEnvelope<"sync/connectProvider", SyncProviderPayload>;
@@ -74,6 +99,8 @@ export type BackgroundMessage =
     | VaultLockMessage
     | VaultUpdatePreferencesMessage
     | EntriesListMessage
+    | EntriesCreateMessage
+    | EntriesUpdateMessage
     | EntriesInsertMessage
     | InsertTargetMessage
     | SyncConnectProviderMessage;

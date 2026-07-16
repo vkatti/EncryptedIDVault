@@ -32,10 +32,7 @@ function createStatusMessage(): VaultGetStatusMessage {
 function createVaultLifecycle(): VaultLifecycle {
     return {
         async initialize() {
-            return { hasVault: false, locked: true };
-        },
-        getStatus() {
-            return { hasVault: false, locked: true };
+            return { hasVault: false, locked: true, lastUnlockedAt: null };
         },
         getAutoLockMinutes() {
             return 5;
@@ -54,6 +51,43 @@ function createVaultLifecycle(): VaultLifecycle {
         },
         async updatePreferences() {
             return { ok: true, hasVault: true, locked: false };
+        },
+        async listEntries() {
+            return { ok: true, entries: [] };
+        },
+        async createEntry() {
+            return {
+                ok: true,
+                entry: {
+                    id: "entry-1",
+                    label: "Email",
+                    value: "demo@example.com",
+                    category: "identity",
+                    maskedPreview: "****.com",
+                    favorite: false,
+                    createdAt: "2026-07-16T00:00:00.000Z",
+                    updatedAt: "2026-07-16T00:00:00.000Z",
+                    copyModeAllowed: true,
+                    insertModeAllowed: true
+                }
+            };
+        },
+        async updateEntry() {
+            return {
+                ok: true,
+                entry: {
+                    id: "entry-1",
+                    label: "Work Email",
+                    value: "work@example.com",
+                    category: "identity",
+                    maskedPreview: "****.com",
+                    favorite: true,
+                    createdAt: "2026-07-16T00:00:00.000Z",
+                    updatedAt: "2026-07-16T00:01:00.000Z",
+                    copyModeAllowed: true,
+                    insertModeAllowed: true
+                }
+            };
         }
     };
 }

@@ -166,3 +166,65 @@ test("isBackgroundMessage rejects vault/updatePreferences with an invalid field 
 
     assert.equal(isBackgroundMessage(message), false);
 });
+
+test("isBackgroundMessage accepts entries/list with valid filters", () => {
+    const message = {
+        id: "msg-12",
+        type: "entries/list",
+        source: "popup",
+        target: "background",
+        payload: {
+            query: "email",
+            favoritesOnly: true
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage accepts entries/create with required fields", () => {
+    const message = {
+        id: "msg-13",
+        type: "entries/create",
+        source: "popup",
+        target: "background",
+        payload: {
+            label: "Primary Email",
+            value: "demo@example.com",
+            category: "identity",
+            favorite: true
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage rejects entries/update without update fields", () => {
+    const message = {
+        id: "msg-14",
+        type: "entries/update",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1"
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});
+
+test("isBackgroundMessage accepts entries/update with valid patch", () => {
+    const message = {
+        id: "msg-15",
+        type: "entries/update",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1",
+            label: "Work Email",
+            favorite: true
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});

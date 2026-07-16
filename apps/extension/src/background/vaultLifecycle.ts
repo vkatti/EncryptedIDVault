@@ -1,10 +1,37 @@
 import { createVaultEnvelope, openVaultEnvelope } from "@encrypted-id-vault/crypto";
-import type { VaultDocument, VaultEnvelope, VaultPreferences } from "@encrypted-id-vault/shared";
+import type { VaultDocument, VaultEntry, VaultEnvelope, VaultPreferences } from "@encrypted-id-vault/shared";
 import { createVaultDocument, createVaultRepository, type VaultRecordStore, type VaultRepository } from "@encrypted-id-vault/vault";
 
 const VAULT_STORAGE_KEY = "vaultEnvelope";
 
-export type VaultLifecycleError = "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_VAULT_ALREADY_EXISTS" | "ERR_VAULT_NOT_FOUND" | "ERR_VAULT_LOCKED";
+export type VaultLifecycleError =
+    | "ERR_UNLOCK_INVALID_PASSWORD"
+    | "ERR_VAULT_ALREADY_EXISTS"
+    | "ERR_VAULT_NOT_FOUND"
+    | "ERR_VAULT_LOCKED"
+    | "ERR_ENTRY_NOT_FOUND";
+
+export type EntryCreateInput = {
+    label: string;
+    value: string;
+    category: string;
+    notes?: string;
+    favorite?: boolean;
+    domainAllowlist?: string[];
+    copyModeAllowed?: boolean;
+    insertModeAllowed?: boolean;
+};
+
+export type EntryUpdateInput = {
+    label?: string;
+    value?: string;
+    category?: string;
+    notes?: string;
+    favorite?: boolean;
+    domainAllowlist?: string[];
+    copyModeAllowed?: boolean;
+    insertModeAllowed?: boolean;
+};
 
 export type VaultLifecycleResult =
     | {
@@ -17,6 +44,36 @@ export type VaultLifecycleResult =
         error: VaultLifecycleError;
     };
 
+export type VaultListEntriesResult =
+    | {
+        ok: true;
+        entries: VaultEntry[];
+    }
+    | {
+        ok: false;
+        error: "ERR_VAULT_LOCKED";
+    };
+
+export type VaultCreateEntryResult =
+    | {
+        ok: true;
+        entry: VaultEntry;
+    }
+    | {
+        ok: false;
+        error: "ERR_VAULT_LOCKED";
+    };
+
+export type VaultUpdateEntryResult =
+    | {
+        ok: true;
+        entry: VaultEntry;
+    }
+    | {
+        ok: false;
+        error: "ERR_VAULT_LOCKED" | "ERR_ENTRY_NOT_FOUND";
+    };
+
 export interface VaultLifecycle {
     initialize(): Promise<{ hasVault: boolean; locked: boolean; lastUnlockedAt: string | null }>;
     getStatus(): { hasVault: boolean; locked: boolean; lastUnlockedAt: string | null; preferences: VaultPreferences | null };
@@ -25,6 +82,9 @@ export interface VaultLifecycle {
     unlockVault(masterPassword: string): Promise<VaultLifecycleResult>;
     lockVault(): Promise<VaultLifecycleResult>;
     updatePreferences(preferences: Partial<VaultPreferences>): Promise<VaultLifecycleResult>;
+    listEntries(filters?: { query?: string; favoritesOnly?: boolean }): Promise<VaultListEntriesResult>;
+    createEntry(entryInput: EntryCreateInput): Promise<VaultCreateEntryResult>;
+    updateEntry(entryId: string, updates: EntryUpdateInput): Promise<VaultUpdateEntryResult>;
 }
 
 export function createChromeVaultRecordStore(storage: chrome.storage.StorageArea = chrome.storage.local): VaultRecordStore {
@@ -57,6 +117,19 @@ export function createVaultLifecycle(options?: {
     let lastUnlockedAt: string | null = null;
     let currentEnvelope: VaultEnvelope | null = null;
     let currentMasterPassword: string | null = null;
+
+    const createEntryId = () => crypto.randomUUID();
+
+    const createMaskedPreview = (value: string): string => {
+        if (value.length <= 4) {
+            return "*".repeat(value.length);
+        }
+
+        const maskLength = Math.min(8, Math.max(4, value.length - 4));
+        return `${"*".repeat(maskLength)}${value.slice(-4)}`;
+    };
+
+    const cloneEntries = (entries: VaultEntry[]): VaultEntry[] => entries.map((entry) => ({ ...entry }));
 
     const persistUnlockedDocument = async (): Promise<void> => {
         if (!unlockedDocument || !currentMasterPassword || !currentEnvelope) {
@@ -157,6 +230,79 @@ export function createVaultLifecycle(options?: {
             await persistUnlockedDocument();
 
             return { ok: true, hasVault: true, locked: false };
+        },
+        async listEntries(filters = {}) {
+            if (!unlockedDocument) {
+                return { ok: false, error: "ERR_VAULT_LOCKED" };
+            }
+
+            const normalizedQuery = filters.query?.trim().toLowerCase();
+            const entries = unlockedDocument.entries.filter((entry) => {
+                if (filters.favoritesOnly && !entry.favorite) {
+                    return false;
+                }
+
+                if (!normalizedQuery) {
+                    return true;
+                }
+
+                return [entry.label, entry.category, entry.notes ?? ""].some((field) => field.toLowerCase().includes(normalizedQuery));
+            });
+
+            return { ok: true, entries: cloneEntries(entries) };
+        },
+        async createEntry(entryInput) {
+            if (!unlockedDocument) {
+                return { ok: false, error: "ERR_VAULT_LOCKED" };
+            }
+
+            const timestamp = now();
+            const nextEntry: VaultEntry = {
+                id: createEntryId(),
+                label: entryInput.label,
+                value: entryInput.value,
+                category: entryInput.category,
+                notes: entryInput.notes,
+                maskedPreview: createMaskedPreview(entryInput.value),
+                favorite: entryInput.favorite ?? false,
+                createdAt: timestamp,
+                updatedAt: timestamp,
+                domainAllowlist: entryInput.domainAllowlist,
+                copyModeAllowed: entryInput.copyModeAllowed ?? true,
+                insertModeAllowed: entryInput.insertModeAllowed ?? true
+            };
+
+            unlockedDocument.entries = [...unlockedDocument.entries, nextEntry];
+            unlockedDocument.metadata.updatedAt = timestamp;
+            await persistUnlockedDocument();
+
+            return { ok: true, entry: { ...nextEntry } };
+        },
+        async updateEntry(entryId, updates) {
+            if (!unlockedDocument) {
+                return { ok: false, error: "ERR_VAULT_LOCKED" };
+            }
+
+            const currentEntry = unlockedDocument.entries.find((entry) => entry.id === entryId);
+            if (!currentEntry) {
+                return { ok: false, error: "ERR_ENTRY_NOT_FOUND" };
+            }
+
+            const timestamp = now();
+            const nextValue = updates.value ?? currentEntry.value;
+            const updatedEntry: VaultEntry = {
+                ...currentEntry,
+                ...updates,
+                value: nextValue,
+                maskedPreview: createMaskedPreview(nextValue),
+                updatedAt: timestamp
+            };
+
+            unlockedDocument.entries = unlockedDocument.entries.map((entry) => (entry.id === entryId ? updatedEntry : entry));
+            unlockedDocument.metadata.updatedAt = timestamp;
+            await persistUnlockedDocument();
+
+            return { ok: true, entry: { ...updatedEntry } };
         }
     };
 }

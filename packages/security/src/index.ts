@@ -1,7 +1,13 @@
 import type {
+    CreateEntryPayload,
     ErrorCode,
+    ListEntriesPayload,
     MessageEnvelope,
     MessageTarget,
+    UpdateEntryPayload,
+    EntriesCreateMessage,
+    EntriesListMessage,
+    EntriesUpdateMessage,
     VaultCreateMessage,
     VaultGetStatusMessage,
     VaultLockMessage,
@@ -16,8 +22,19 @@ export type { ErrorCode } from "@encrypted-id-vault/shared";
 const MESSAGE_TARGETS: readonly MessageTarget[] = ["background", "popup", "options", "content-script"] as const;
 const LOCK_REASONS = ["manual", "timeout", "restart"] as const;
 const PREFERENCE_KEYS = ["autoLockMinutes", "defaultInsertMode", "clipboardWarningEnabled", "theme", "telemetryEnabled"] as const;
+const ENTRY_CREATE_KEYS = ["label", "value", "category", "notes", "favorite", "domainAllowlist", "copyModeAllowed", "insertModeAllowed"] as const;
+const ENTRY_UPDATE_KEYS = ["entryId", "label", "value", "category", "notes", "favorite", "domainAllowlist", "copyModeAllowed", "insertModeAllowed"] as const;
+const ENTRY_LIST_KEYS = ["query", "favoritesOnly"] as const;
 
-type RoutedBackgroundMessage = VaultGetStatusMessage | VaultCreateMessage | VaultUnlockMessage | VaultLockMessage | VaultUpdatePreferencesMessage;
+type RoutedBackgroundMessage =
+    | VaultGetStatusMessage
+    | VaultCreateMessage
+    | VaultUnlockMessage
+    | VaultLockMessage
+    | VaultUpdatePreferencesMessage
+    | EntriesListMessage
+    | EntriesCreateMessage
+    | EntriesUpdateMessage;
 
 export function isErrorCode(value: unknown): value is ErrorCode {
     return typeof value === "string" && (ERROR_CODES as readonly string[]).includes(value);
@@ -53,6 +70,81 @@ function hasOnlyKeys(record: Record<string, unknown>, keys: readonly string[]): 
 
 function isBackgroundRoutedEnvelope(value: unknown): value is MessageEnvelope<string, unknown> {
     return isMessageEnvelope(value) && value.source === "popup" && value.target === "background";
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+    return value === undefined || typeof value === "string";
+}
+
+function isOptionalBoolean(value: unknown): value is boolean | undefined {
+    return value === undefined || typeof value === "boolean";
+}
+
+function isOptionalStringArray(value: unknown): value is string[] | undefined {
+    return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === "string"));
+}
+
+function isCreateEntryPayload(payload: unknown): payload is CreateEntryPayload {
+    if (!isRecord(payload)) {
+        return false;
+    }
+
+    if (!Object.keys(payload).every((key) => (ENTRY_CREATE_KEYS as readonly string[]).includes(key))) {
+        return false;
+    }
+
+    return (
+        isNonEmptyString(payload.label) &&
+        isNonEmptyString(payload.value) &&
+        isNonEmptyString(payload.category) &&
+        isOptionalString(payload.notes) &&
+        isOptionalBoolean(payload.favorite) &&
+        isOptionalStringArray(payload.domainAllowlist) &&
+        isOptionalBoolean(payload.copyModeAllowed) &&
+        isOptionalBoolean(payload.insertModeAllowed)
+    );
+}
+
+function isUpdateEntryPayload(payload: unknown): payload is UpdateEntryPayload {
+    if (!isRecord(payload)) {
+        return false;
+    }
+
+    if (!Object.keys(payload).every((key) => (ENTRY_UPDATE_KEYS as readonly string[]).includes(key))) {
+        return false;
+    }
+
+    if (!isNonEmptyString(payload.entryId)) {
+        return false;
+    }
+
+    const hasUpdates = Object.keys(payload).some((key) => key !== "entryId");
+    if (!hasUpdates) {
+        return false;
+    }
+
+    return (
+        isOptionalString(payload.label) &&
+        isOptionalString(payload.value) &&
+        isOptionalString(payload.category) &&
+        isOptionalString(payload.notes) &&
+        isOptionalBoolean(payload.favorite) &&
+        isOptionalStringArray(payload.domainAllowlist) &&
+        isOptionalBoolean(payload.copyModeAllowed) &&
+        isOptionalBoolean(payload.insertModeAllowed)
+    );
+}
+
+function isListEntriesPayload(payload: unknown): payload is ListEntriesPayload {
+    if (!isRecord(payload)) {
+        return false;
+    }
+
+    if (!Object.keys(payload).every((key) => (ENTRY_LIST_KEYS as readonly string[]).includes(key))) {
+        return false;
+    }
+
+    return isOptionalString(payload.query) && isOptionalBoolean(payload.favoritesOnly);
 }
 
 export function isVaultGetStatusMessage(value: unknown): value is VaultGetStatusMessage {
@@ -116,8 +208,29 @@ export function isVaultUpdatePreferencesMessage(value: unknown): value is VaultU
     );
 }
 
+export function isEntriesListMessage(value: unknown): value is EntriesListMessage {
+    return isBackgroundRoutedEnvelope(value) && value.type === "entries/list" && isListEntriesPayload(value.payload);
+}
+
+export function isEntriesCreateMessage(value: unknown): value is EntriesCreateMessage {
+    return isBackgroundRoutedEnvelope(value) && value.type === "entries/create" && isCreateEntryPayload(value.payload);
+}
+
+export function isEntriesUpdateMessage(value: unknown): value is EntriesUpdateMessage {
+    return isBackgroundRoutedEnvelope(value) && value.type === "entries/update" && isUpdateEntryPayload(value.payload);
+}
+
 export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMessage {
-    return isVaultGetStatusMessage(value) || isVaultCreateMessage(value) || isVaultUnlockMessage(value) || isVaultLockMessage(value) || isVaultUpdatePreferencesMessage(value);
+    return (
+        isVaultGetStatusMessage(value) ||
+        isVaultCreateMessage(value) ||
+        isVaultUnlockMessage(value) ||
+        isVaultLockMessage(value) ||
+        isVaultUpdatePreferencesMessage(value) ||
+        isEntriesListMessage(value) ||
+        isEntriesCreateMessage(value) ||
+        isEntriesUpdateMessage(value)
+    );
 }
 
 export function createMessageEnvelope<TType extends string, TPayload>(params: {

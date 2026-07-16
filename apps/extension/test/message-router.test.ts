@@ -31,10 +31,7 @@ function createStatusMessage(): VaultGetStatusMessage {
 function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecycle {
     return {
         async initialize() {
-            return { hasVault: false, locked: true };
-        },
-        getStatus() {
-            return { hasVault: false, locked: true };
+            return { hasVault: false, locked: true, lastUnlockedAt: null };
         },
         getAutoLockMinutes() {
             return 5;
@@ -53,6 +50,43 @@ function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecyc
         },
         async updatePreferences() {
             return { ok: true, hasVault: true, locked: false };
+        },
+        async listEntries() {
+            return { ok: true, entries: [] };
+        },
+        async createEntry() {
+            return {
+                ok: true,
+                entry: {
+                    id: "entry-1",
+                    label: "Email",
+                    value: "demo@example.com",
+                    category: "identity",
+                    maskedPreview: "****.com",
+                    favorite: false,
+                    createdAt: "2026-07-16T00:00:00.000Z",
+                    updatedAt: "2026-07-16T00:00:00.000Z",
+                    copyModeAllowed: true,
+                    insertModeAllowed: true
+                }
+            };
+        },
+        async updateEntry() {
+            return {
+                ok: true,
+                entry: {
+                    id: "entry-1",
+                    label: "Work Email",
+                    value: "work@example.com",
+                    category: "identity",
+                    maskedPreview: "****.com",
+                    favorite: true,
+                    createdAt: "2026-07-16T00:00:00.000Z",
+                    updatedAt: "2026-07-16T00:01:00.000Z",
+                    copyModeAllowed: true,
+                    insertModeAllowed: true
+                }
+            };
         },
         ...overrides
     };
@@ -126,7 +160,7 @@ test("routeBackgroundMessage mutates lock state for vault/create, vault/unlock a
     assert.equal(runtimeState.locked, true);
 });
 
-test("routeBackgroundMessage rejects unhandled but schema-valid messages", async () => {
+test("routeBackgroundMessage routes entries/list responses", async () => {
     const runtimeState = createRuntimeState();
     const vaultLifecycle = createVaultLifecycle();
     const message = {
@@ -139,5 +173,58 @@ test("routeBackgroundMessage rejects unhandled but schema-valid messages", async
 
     const result = await routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle);
 
-    assert.deepEqual(result, { ok: false, error: "ERR_UNHANDLED_MESSAGE" });
+    assert.equal(result.ok, true);
+    if ("entries" in result) {
+        assert.equal(result.entries.length, 0);
+        return;
+    }
+
+    assert.fail("Expected entries list response");
+});
+
+test("routeBackgroundMessage routes entries/create and entries/update", async () => {
+    const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
+
+    const createMessage = {
+        id: "message-5",
+        type: "entries/create",
+        source: "popup",
+        target: "background",
+        payload: {
+            label: "Email",
+            value: "demo@example.com",
+            category: "identity"
+        }
+    } satisfies BackgroundMessage;
+
+    const createResult = await routeBackgroundMessage(createMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    assert.equal(createResult.ok, true);
+    if ("entry" in createResult) {
+        assert.equal(createResult.entry.label, "Email");
+    } else {
+        assert.fail("Expected create entry response");
+    }
+
+    const updateMessage = {
+        id: "message-6",
+        type: "entries/update",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1",
+            label: "Work Email",
+            favorite: true
+        }
+    } satisfies BackgroundMessage;
+
+    const updateResult = await routeBackgroundMessage(updateMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    assert.equal(updateResult.ok, true);
+    if ("entry" in updateResult) {
+        assert.equal(updateResult.entry.label, "Work Email");
+        assert.equal(updateResult.entry.favorite, true);
+        return;
+    }
+
+    assert.fail("Expected update entry response");
 });

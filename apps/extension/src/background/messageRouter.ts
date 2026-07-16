@@ -1,4 +1,4 @@
-import type { BackgroundMessage, VaultGetStatusMessage, VaultPreferences } from "@encrypted-id-vault/shared";
+import type { BackgroundMessage, VaultEntry, VaultGetStatusMessage, VaultPreferences } from "@encrypted-id-vault/shared";
 
 import type { VaultLifecycle } from "./vaultLifecycle";
 
@@ -27,8 +27,22 @@ export type BackgroundResponse =
         preferences: VaultPreferences | null;
     }
     | {
+        ok: true;
+        entries: VaultEntry[];
+    }
+    | {
+        ok: true;
+        entry: VaultEntry;
+    }
+    | {
         ok: false;
-        error: "ERR_UNHANDLED_MESSAGE" | "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_VAULT_ALREADY_EXISTS" | "ERR_VAULT_NOT_FOUND" | "ERR_VAULT_LOCKED";
+        error:
+        | "ERR_UNHANDLED_MESSAGE"
+        | "ERR_UNLOCK_INVALID_PASSWORD"
+        | "ERR_VAULT_ALREADY_EXISTS"
+        | "ERR_VAULT_NOT_FOUND"
+        | "ERR_VAULT_LOCKED"
+        | "ERR_ENTRY_NOT_FOUND";
     };
 
 async function applyLifecycleResult(
@@ -82,6 +96,34 @@ export async function routeBackgroundMessage(
             runtimeState.locked = result.locked;
             runtimeState.preferences = vaultLifecycle.getStatus().preferences;
             return { ok: true, preferences: runtimeState.preferences };
+        }
+        case "entries/list": {
+            const result = await vaultLifecycle.listEntries(message.payload);
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            return { ok: true, entries: result.entries };
+        }
+        case "entries/create": {
+            const result = await vaultLifecycle.createEntry(message.payload);
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            return { ok: true, entry: result.entry };
+        }
+        case "entries/update": {
+            const { entryId, ...updates } = message.payload;
+            const result = await vaultLifecycle.updateEntry(entryId, updates);
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            return { ok: true, entry: result.entry };
         }
         default:
             return { ok: false, error: "ERR_UNHANDLED_MESSAGE" };

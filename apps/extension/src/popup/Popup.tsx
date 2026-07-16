@@ -22,6 +22,24 @@ type StatusResponse = {
 
 type Action = "vault/getStatus" | "vault/create" | "vault/unlock" | "vault/lock";
 
+function getPasswordStrength(password: string): "weak" | "medium" | "strong" {
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasDigit = /\d/.test(password);
+    const hasSymbol = /[^A-Za-z0-9]/.test(password);
+    const score = [hasUpper, hasLower, hasDigit, hasSymbol].filter(Boolean).length;
+
+    if (password.length >= 14 && score >= 3) {
+        return "strong";
+    }
+
+    if (password.length >= 10 && score >= 2) {
+        return "medium";
+    }
+
+    return "weak";
+}
+
 async function sendMessage(action: Action, payload: Record<string, unknown>): Promise<StatusResponse> {
     return (await chrome.runtime.sendMessage(
         createMessageEnvelope({
@@ -45,6 +63,8 @@ export function Popup() {
     const [error, setError] = React.useState<string | null>(null);
     const [masterPassword, setMasterPassword] = React.useState("");
     const [busy, setBusy] = React.useState(false);
+
+    const passwordStrength = getPasswordStrength(masterPassword);
 
     const refreshStatus = React.useCallback(async () => {
         const response = await sendMessage("vault/getStatus", {});
@@ -106,6 +126,8 @@ export function Popup() {
                     />
                 </label>
             ) : null}
+
+            {status.locked ? <p>Password strength: {passwordStrength}</p> : null}
 
             {error ? <p role="alert">{error}</p> : null}
             <button type="button" onClick={() => void refreshStatus()}>

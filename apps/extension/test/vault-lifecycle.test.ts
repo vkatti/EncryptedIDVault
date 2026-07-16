@@ -62,3 +62,29 @@ test("vault lifecycle returns not found when unlocking before create", async () 
 
     assert.deepEqual(result, { ok: false, error: "ERR_VAULT_NOT_FOUND" });
 });
+
+test("vault lifecycle initialize enforces locked state after vault exists", async () => {
+    const lifecycle = createLifecycle();
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+
+    const afterCreate = lifecycle.getStatus();
+    assert.equal(afterCreate.locked, false);
+
+    const afterInitialize = await lifecycle.initialize();
+    assert.deepEqual(afterInitialize, { hasVault: true, locked: true });
+    assert.equal(lifecycle.getAutoLockMinutes(), null);
+});
+
+test("vault lifecycle lock clears unlocked session state", async () => {
+    const lifecycle = createLifecycle();
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+    assert.equal(lifecycle.getAutoLockMinutes(), 5);
+
+    await lifecycle.lockVault();
+    assert.equal(lifecycle.getAutoLockMinutes(), null);
+    assert.equal(lifecycle.getStatus().locked, true);
+});

@@ -11,6 +11,7 @@ node_modules/
 dist/
 build/
 coverage/
+handover.txt
 
 # Logs and local env files
 *.log

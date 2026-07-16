@@ -257,3 +257,33 @@ test("isBackgroundMessage rejects entries/delete with invalid payload", () => {
 
     assert.equal(isBackgroundMessage(message), false);
 });
+
+test("isBackgroundMessage accepts entries/reorder with valid payload", () => {
+    const message = {
+        id: "msg-18",
+        type: "entries/reorder",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1",
+            targetIndex: 2
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage rejects entries/reorder with invalid payload", () => {
+    const message = {
+        id: "msg-19",
+        type: "entries/reorder",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1",
+            targetIndex: -1
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});

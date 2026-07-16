@@ -150,6 +150,18 @@ async function deleteEntryMessage(payload: { entryId: string }): Promise<EntryMu
     )) as EntryMutationResponse;
 }
 
+async function reorderEntryMessage(payload: { entryId: string; targetIndex: number }): Promise<EntryMutationResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "entries/reorder",
+            source: "popup",
+            target: "background",
+            payload
+        })
+    )) as EntryMutationResponse;
+}
+
 const DEFAULT_PREFERENCES: VaultPreferences = {
     autoLockMinutes: 5,
     defaultInsertMode: "insert",
@@ -373,6 +385,21 @@ export function Popup() {
         setBusy(false);
     }, [cancelEditingEntry, editingEntryId, loadEntries]);
 
+    const moveEntry = React.useCallback(async (entryId: string, targetIndex: number) => {
+        setBusy(true);
+        const response = await reorderEntryMessage({ entryId, targetIndex });
+
+        if (!response.ok) {
+            setError(response.error ?? "Unable to reorder entry");
+            setBusy(false);
+            return;
+        }
+
+        setError(null);
+        await loadEntries();
+        setBusy(false);
+    }, [loadEntries]);
+
     return (
         <main>
             <h1>Encrypted ID Vault</h1>
@@ -504,7 +531,7 @@ export function Popup() {
 
                     <h3>Entry list</h3>
                     {entries.length === 0 ? <p>No entries yet.</p> : null}
-                    {entries.map((entry) => (
+                    {entries.map((entry, index) => (
                         <article key={entry.id}>
                             <p>
                                 <strong>{entry.label}</strong> ({entry.category})
@@ -565,6 +592,20 @@ export function Popup() {
                                     <p>Favorite: {entry.favorite ? "yes" : "no"}</p>
                                     <button type="button" disabled={busy} onClick={() => startEditingEntry(entry)}>
                                         Edit entry
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={busy || index === 0}
+                                        onClick={() => void moveEntry(entry.id, index - 1)}
+                                    >
+                                        Move up
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={busy || index === entries.length - 1}
+                                        onClick={() => void moveEntry(entry.id, index + 1)}
+                                    >
+                                        Move down
                                     </button>
                                     <button type="button" disabled={busy} onClick={() => void deleteEntry(entry.id)}>
                                         Delete entry

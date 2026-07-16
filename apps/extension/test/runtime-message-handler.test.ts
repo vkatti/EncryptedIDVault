@@ -91,6 +91,23 @@ function createVaultLifecycle(): VaultLifecycle {
         },
         async deleteEntry(entryId) {
             return { ok: true, deletedEntryId: entryId };
+        },
+        async reorderEntry() {
+            return {
+                ok: true,
+                entry: {
+                    id: "entry-1",
+                    label: "Email",
+                    value: "demo@example.com",
+                    category: "identity",
+                    maskedPreview: "****.com",
+                    favorite: false,
+                    createdAt: "2026-07-16T00:00:00.000Z",
+                    updatedAt: "2026-07-16T00:02:00.000Z",
+                    copyModeAllowed: true,
+                    insertModeAllowed: true
+                }
+            };
         }
     };
 }

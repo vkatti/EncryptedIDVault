@@ -84,6 +84,16 @@ export type VaultDeleteEntryResult =
         error: "ERR_VAULT_LOCKED" | "ERR_ENTRY_NOT_FOUND";
     };
 
+export type VaultReorderEntryResult =
+    | {
+        ok: true;
+        entry: VaultEntry;
+    }
+    | {
+        ok: false;
+        error: "ERR_VAULT_LOCKED" | "ERR_ENTRY_NOT_FOUND";
+    };
+
 export interface VaultLifecycle {
     initialize(): Promise<{ hasVault: boolean; locked: boolean; lastUnlockedAt: string | null }>;
     getStatus(): { hasVault: boolean; locked: boolean; lastUnlockedAt: string | null; preferences: VaultPreferences | null };
@@ -96,6 +106,7 @@ export interface VaultLifecycle {
     createEntry(entryInput: EntryCreateInput): Promise<VaultCreateEntryResult>;
     updateEntry(entryId: string, updates: EntryUpdateInput): Promise<VaultUpdateEntryResult>;
     deleteEntry(entryId: string): Promise<VaultDeleteEntryResult>;
+    reorderEntry(entryId: string, targetIndex: number): Promise<VaultReorderEntryResult>;
 }
 
 export function createChromeVaultRecordStore(storage: chrome.storage.StorageArea = chrome.storage.local): VaultRecordStore {
@@ -331,6 +342,40 @@ export function createVaultLifecycle(options?: {
             await persistUnlockedDocument();
 
             return { ok: true, deletedEntryId: entryId };
+        },
+        async reorderEntry(entryId, targetIndex) {
+            if (!unlockedDocument) {
+                return { ok: false, error: "ERR_VAULT_LOCKED" };
+            }
+
+            const currentIndex = unlockedDocument.entries.findIndex((entry) => entry.id === entryId);
+            if (currentIndex < 0) {
+                return { ok: false, error: "ERR_ENTRY_NOT_FOUND" };
+            }
+
+            const boundedTargetIndex = Math.max(0, Math.min(targetIndex, unlockedDocument.entries.length - 1));
+            if (boundedTargetIndex === currentIndex) {
+                return { ok: true, entry: { ...unlockedDocument.entries[currentIndex] } };
+            }
+
+            const timestamp = now();
+            const entries = [...unlockedDocument.entries];
+            const [movedEntry] = entries.splice(currentIndex, 1);
+            entries.splice(boundedTargetIndex, 0, {
+                ...movedEntry,
+                updatedAt: timestamp
+            });
+
+            unlockedDocument.entries = entries;
+            unlockedDocument.metadata.updatedAt = timestamp;
+            await persistUnlockedDocument();
+
+            const updatedEntry = unlockedDocument.entries.find((entry) => entry.id === entryId);
+            if (!updatedEntry) {
+                return { ok: false, error: "ERR_ENTRY_NOT_FOUND" };
+            }
+
+            return { ok: true, entry: { ...updatedEntry } };
         }
     };
 }

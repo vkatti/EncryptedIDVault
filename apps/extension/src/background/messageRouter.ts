@@ -138,6 +138,15 @@ export async function routeBackgroundMessage(
 
             return { ok: true, deletedEntryId: result.deletedEntryId };
         }
+        case "entries/reorder": {
+            const result = await vaultLifecycle.reorderEntry(message.payload.entryId, message.payload.targetIndex);
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            return { ok: true, entry: result.entry };
+        }
         default:
             return { ok: false, error: "ERR_UNHANDLED_MESSAGE" };
     }

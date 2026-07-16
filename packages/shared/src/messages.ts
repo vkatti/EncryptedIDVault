@@ -62,6 +62,11 @@ export interface DeleteEntryPayload {
     entryId: string;
 }
 
+export interface ReorderEntryPayload {
+    entryId: string;
+    targetIndex: number;
+}
+
 export interface InsertEntryPayload {
     entryId: string;
     fallbackToClipboard?: boolean;
@@ -93,6 +98,7 @@ export type EntriesListMessage = MessageEnvelope<"entries/list", ListEntriesPayl
 export type EntriesCreateMessage = MessageEnvelope<"entries/create", CreateEntryPayload>;
 export type EntriesUpdateMessage = MessageEnvelope<"entries/update", UpdateEntryPayload>;
 export type EntriesDeleteMessage = MessageEnvelope<"entries/delete", DeleteEntryPayload>;
+export type EntriesReorderMessage = MessageEnvelope<"entries/reorder", ReorderEntryPayload>;
 export type EntriesInsertMessage = MessageEnvelope<"entries/insert", InsertEntryPayload>;
 export type InsertTargetMessage = MessageEnvelope<"insert/target", InsertTargetPayload>;
 export type SyncConnectProviderMessage = MessageEnvelope<"sync/connectProvider", SyncProviderPayload>;
@@ -107,6 +113,7 @@ export type BackgroundMessage =
     | EntriesCreateMessage
     | EntriesUpdateMessage
     | EntriesDeleteMessage
+    | EntriesReorderMessage
     | EntriesInsertMessage
     | InsertTargetMessage
     | SyncConnectProviderMessage;

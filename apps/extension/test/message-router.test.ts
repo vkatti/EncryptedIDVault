@@ -91,6 +91,23 @@ function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecyc
         async deleteEntry(entryId) {
             return { ok: true, deletedEntryId: entryId };
         },
+        async reorderEntry() {
+            return {
+                ok: true,
+                entry: {
+                    id: "entry-1",
+                    label: "Email",
+                    value: "demo@example.com",
+                    category: "identity",
+                    maskedPreview: "****.com",
+                    favorite: false,
+                    createdAt: "2026-07-16T00:00:00.000Z",
+                    updatedAt: "2026-07-16T00:02:00.000Z",
+                    copyModeAllowed: true,
+                    insertModeAllowed: true
+                }
+            };
+        },
         ...overrides
     };
 }
@@ -254,4 +271,29 @@ test("routeBackgroundMessage routes entries/delete", async () => {
     }
 
     assert.fail("Expected delete entry response");
+});
+
+test("routeBackgroundMessage routes entries/reorder", async () => {
+    const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
+
+    const reorderMessage = {
+        id: "message-8",
+        type: "entries/reorder",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1",
+            targetIndex: 0
+        }
+    } satisfies BackgroundMessage;
+
+    const reorderResult = await routeBackgroundMessage(reorderMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    assert.equal(reorderResult.ok, true);
+    if ("entry" in reorderResult) {
+        assert.equal(reorderResult.entry.id, "entry-1");
+        return;
+    }
+
+    assert.fail("Expected reorder entry response");
 });

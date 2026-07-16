@@ -1,9 +1,7 @@
 import type {
-    BackgroundMessage,
     ErrorCode,
     MessageEnvelope,
     MessageTarget,
-    SyncConnectProviderMessage,
     VaultGetStatusMessage,
     VaultLockMessage,
     VaultUnlockMessage
@@ -14,6 +12,9 @@ import { ERROR_CODES } from "@encrypted-id-vault/shared";
 export type { ErrorCode } from "@encrypted-id-vault/shared";
 
 const MESSAGE_TARGETS: readonly MessageTarget[] = ["background", "popup", "options", "content-script"] as const;
+const LOCK_REASONS = ["manual", "timeout", "restart"] as const;
+
+type RoutedBackgroundMessage = VaultGetStatusMessage | VaultUnlockMessage | VaultLockMessage;
 
 export function isErrorCode(value: unknown): value is ErrorCode {
     return typeof value === "string" && (ERROR_CODES as readonly string[]).includes(value);
@@ -38,29 +39,43 @@ export function isMessageEnvelope(value: unknown): value is MessageEnvelope<stri
     );
 }
 
+function hasOnlyKeys(record: Record<string, unknown>, keys: readonly string[]): boolean {
+    const presentKeys = Object.keys(record);
+    return presentKeys.length === keys.length && presentKeys.every((key) => keys.includes(key));
+}
+
+function isBackgroundRoutedEnvelope(value: unknown): value is MessageEnvelope<string, unknown> {
+    return isMessageEnvelope(value) && value.target === "background";
+}
+
 export function isVaultGetStatusMessage(value: unknown): value is VaultGetStatusMessage {
-    return isMessageEnvelope(value) && value.type === "vault/getStatus";
+    return isBackgroundRoutedEnvelope(value) && value.type === "vault/getStatus" && isRecord(value.payload) && hasOnlyKeys(value.payload, []);
 }
 
 export function isVaultUnlockMessage(value: unknown): value is VaultUnlockMessage {
-    return isMessageEnvelope(value) && value.type === "vault/unlock" && isRecord(value.payload) && typeof value.payload.masterPassword === "string";
+    return (
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "vault/unlock" &&
+        isRecord(value.payload) &&
+        hasOnlyKeys(value.payload, ["masterPassword"]) &&
+        typeof value.payload.masterPassword === "string" &&
+        value.payload.masterPassword.trim().length > 0
+    );
 }
 
 export function isVaultLockMessage(value: unknown): value is VaultLockMessage {
-    return isMessageEnvelope(value) && value.type === "vault/lock" && isRecord(value.payload) && typeof value.payload.reason === "string";
-}
-
-export function isSyncConnectProviderMessage(value: unknown): value is SyncConnectProviderMessage {
-    return isMessageEnvelope(value) && value.type === "sync/connectProvider" && isRecord(value.payload) && typeof value.payload.provider === "string";
-}
-
-export function isBackgroundMessage(value: unknown): value is BackgroundMessage {
     return (
-        isVaultGetStatusMessage(value) ||
-        isVaultUnlockMessage(value) ||
-        isVaultLockMessage(value) ||
-        isSyncConnectProviderMessage(value)
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "vault/lock" &&
+        isRecord(value.payload) &&
+        hasOnlyKeys(value.payload, ["reason"]) &&
+        typeof value.payload.reason === "string" &&
+        (LOCK_REASONS as readonly string[]).includes(value.payload.reason)
     );
+}
+
+export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMessage {
+    return isVaultGetStatusMessage(value) || isVaultUnlockMessage(value) || isVaultLockMessage(value);
 }
 
 export function createMessageEnvelope<TType extends string, TPayload>(params: {

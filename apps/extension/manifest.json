@@ -8,8 +8,13 @@
     },
     "content_scripts": [
         {
-            "matches": ["http://*/*", "https://*/*"],
-            "js": ["contentScript.js"],
+            "matches": [
+                "http://*/*",
+                "https://*/*"
+            ],
+            "js": [
+                "contentScript.js"
+            ],
             "all_frames": true,
             "run_at": "document_idle"
         }
@@ -38,6 +43,9 @@
             "description": "Insert selected entry into focused field"
         }
     },
-    "host_permissions": ["http://*/*", "https://*/*"],
+    "host_permissions": [
+        "http://*/*",
+        "https://*/*"
+    ],
     "minimum_chrome_version": "120"
 }

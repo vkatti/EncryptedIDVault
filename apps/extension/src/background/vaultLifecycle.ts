@@ -1,5 +1,5 @@
-import { createVaultEnvelope, openVaultEnvelope } from "@encrypted-id-vault/crypto";
-import type { VaultDocument, VaultEntry, VaultEnvelope, VaultPreferences } from "@encrypted-id-vault/shared";
+import { createVaultEnvelope, openVaultEnvelope }                                                  from "@encrypted-id-vault/crypto";
+import type { VaultDocument, VaultEntry, VaultEnvelope, VaultPreferences }                         from "@encrypted-id-vault/shared";
 import { createVaultDocument, createVaultRepository, type VaultRecordStore, type VaultRepository } from "@encrypted-id-vault/vault";
 
 const VAULT_STORAGE_KEY = "vaultEnvelope";

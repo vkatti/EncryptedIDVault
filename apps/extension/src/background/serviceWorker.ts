@@ -1,8 +1,8 @@
 import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vault/shared";
 
-import { createMessageEnvelope, isBackgroundMessage } from "@encrypted-id-vault/security";
-import { routeBackgroundMessage } from "./messageRouter";
+import { createMessageEnvelope } from "@encrypted-id-vault/security";
 import { getCommandTriggerSource, getContextMenuTriggerSource } from "./triggerSource";
+import { handleRuntimeMessage } from "./runtimeMessageHandler";
 
 type ExtensionRuntimeState = {
     installedAt: string | null;
@@ -70,14 +70,7 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-    if (!isBackgroundMessage(message)) {
-        sendResponse({ ok: false, error: "ERR_INVALID_MESSAGE" });
-        return false;
-    }
-
-    runtimeState.lastMessageAt = new Date().toISOString();
-
-    sendResponse(routeBackgroundMessage(message, runtimeState, createStatusMessage));
+    sendResponse(handleRuntimeMessage(message, runtimeState, createStatusMessage, new Date().toISOString()));
     return false;
 });
 

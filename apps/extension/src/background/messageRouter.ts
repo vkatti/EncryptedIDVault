@@ -8,7 +8,7 @@ export type RuntimeStateSnapshot = {
     hasVault: boolean;
 };
 
-type BackgroundResponse =
+export type BackgroundResponse =
     | {
         ok: true;
         message: VaultGetStatusMessage;

@@ -1,6 +1,7 @@
 import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vault/shared";
 
 import { createMessageEnvelope, isBackgroundMessage } from "@encrypted-id-vault/security";
+import { routeBackgroundMessage } from "./messageRouter";
 import { getCommandTriggerSource, getContextMenuTriggerSource } from "./triggerSource";
 
 type ExtensionRuntimeState = {
@@ -76,36 +77,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 
     runtimeState.lastMessageAt = new Date().toISOString();
 
-    if (message.type === "vault/getStatus") {
-        const statusMessage = createStatusMessage();
-
-        sendResponse({
-            ok: true,
-            message: statusMessage,
-            state: {
-                installedAt: runtimeState.installedAt,
-                locked: runtimeState.locked,
-                hasVault: runtimeState.hasVault,
-                lastMessageAt: runtimeState.lastMessageAt,
-                lastUserTrigger: runtimeState.lastUserTrigger
-            }
-        });
-        return false;
-    }
-
-    if (message.type === "vault/lock") {
-        runtimeState.locked = true;
-        sendResponse({ ok: true, locked: true });
-        return false;
-    }
-
-    if (message.type === "vault/unlock") {
-        runtimeState.locked = false;
-        sendResponse({ ok: true, locked: false });
-        return false;
-    }
-
-    sendResponse({ ok: false, error: "ERR_UNHANDLED_MESSAGE" });
+    sendResponse(routeBackgroundMessage(message, runtimeState, createStatusMessage));
     return false;
 });
 

@@ -11,6 +11,7 @@ function createRuntimeState(): RuntimeStateSnapshot {
         installedAt: "2026-07-16T00:00:00.000Z",
         lastMessageAt: "2026-07-16T00:01:00.000Z",
         lastUserTrigger: "command:open-vault-popup",
+        lastUnlockedAt: null,
         locked: true,
         hasVault: false
     };
@@ -67,6 +68,7 @@ test("routeBackgroundMessage returns status payload for vault/getStatus", async 
     if ("state" in result) {
         assert.equal(result.state.lastUserTrigger, "command:open-vault-popup");
         assert.equal(result.message.type, "vault/getStatus");
+        assert.equal(result.state.lastUnlockedAt, null);
     } else {
         assert.fail("Expected status response");
     }

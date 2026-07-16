@@ -49,6 +49,7 @@ export interface IntegrityParameters {
 export interface VaultMetadata {
     createdAt: string;
     updatedAt: string;
+    lastUnlockedAt?: string;
     lastSyncedAt?: string;
     syncProvider: SyncProvider;
 }

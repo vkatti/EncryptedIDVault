@@ -8,6 +8,7 @@ type PopupStatus = {
     hasVault: boolean;
     lastMessageAt: string | null;
     lastUserTrigger: string | null;
+    lastUnlockedAt: string | null;
 };
 
 type StatusResponse = {
@@ -58,7 +59,8 @@ export function Popup() {
         locked: true,
         hasVault: false,
         lastMessageAt: null,
-        lastUserTrigger: null
+        lastUserTrigger: null,
+        lastUnlockedAt: null
     });
     const [error, setError] = React.useState<string | null>(null);
     const [masterPassword, setMasterPassword] = React.useState("");
@@ -111,6 +113,7 @@ export function Popup() {
             <p>State: {status.locked ? "locked" : "unlocked"}</p>
             {status.lastMessageAt ? <p>Last message: {status.lastMessageAt}</p> : null}
             {status.lastUserTrigger ? <p>Last trigger: {status.lastUserTrigger}</p> : null}
+            {status.lastUnlockedAt ? <p>Last unlocked: {status.lastUnlockedAt}</p> : null}
             {status.hasVault ? null : <p>Create a master password to bootstrap your encrypted local vault.</p>}
             {status.locked ? <p>Unlock is required to access vault entries in this session.</p> : <p>Vault is unlocked in memory only.</p>}
 

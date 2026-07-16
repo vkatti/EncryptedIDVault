@@ -9,6 +9,7 @@ type ExtensionRuntimeState = {
     installedAt: string | null;
     lastMessageAt: string | null;
     lastUserTrigger: string | null;
+    lastUnlockedAt: string | null;
     locked: boolean;
     hasVault: boolean;
 };
@@ -17,6 +18,7 @@ const runtimeState: ExtensionRuntimeState = {
     installedAt: null,
     lastMessageAt: null,
     lastUserTrigger: null,
+    lastUnlockedAt: null,
     locked: true,
     hasVault: false
 };
@@ -42,6 +44,7 @@ async function loadVaultStatus(): Promise<void> {
     const state = await vaultLifecycle.initialize();
     runtimeState.hasVault = state.hasVault;
     runtimeState.locked = state.locked;
+    runtimeState.lastUnlockedAt = state.lastUnlockedAt;
 }
 
 function clearAutoLockAlarm(): void {
@@ -107,6 +110,8 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
             } else {
                 scheduleAutoLockAlarm();
             }
+
+            runtimeState.lastUnlockedAt = vaultLifecycle.getStatus().lastUnlockedAt;
         }
 
         sendResponse(response);
@@ -128,6 +133,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
         runtimeState.hasVault = result.hasVault;
         runtimeState.locked = result.locked;
+        runtimeState.lastUnlockedAt = vaultLifecycle.getStatus().lastUnlockedAt;
         clearAutoLockAlarm();
     })();
 });

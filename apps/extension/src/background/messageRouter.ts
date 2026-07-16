@@ -6,6 +6,7 @@ export type RuntimeStateSnapshot = {
     installedAt: string | null;
     lastMessageAt: string | null;
     lastUserTrigger: string | null;
+    lastUnlockedAt: string | null;
     locked: boolean;
     hasVault: boolean;
 };
@@ -54,7 +55,8 @@ export async function routeBackgroundMessage(
                     locked: runtimeState.locked,
                     hasVault: runtimeState.hasVault,
                     lastMessageAt: runtimeState.lastMessageAt,
-                    lastUserTrigger: runtimeState.lastUserTrigger
+                    lastUserTrigger: runtimeState.lastUserTrigger,
+                    lastUnlockedAt: runtimeState.lastUnlockedAt
                 }
             };
         case "vault/create":

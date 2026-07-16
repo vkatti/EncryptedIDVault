@@ -26,10 +26,11 @@ export function createDefaultVaultPreferences(): VaultPreferences {
     };
 }
 
-export function createVaultMetadata(timestamp = new Date().toISOString()): VaultMetadata {
+export function createVaultMetadata(timestamp = new Date().toISOString(), lastUnlockedAt?: string): VaultMetadata {
     return {
         createdAt: timestamp,
         updatedAt: timestamp,
+        lastUnlockedAt,
         syncProvider: null
     };
 }

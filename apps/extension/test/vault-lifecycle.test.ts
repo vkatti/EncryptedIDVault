@@ -19,7 +19,7 @@ test("vault lifecycle creates and persists an encrypted vault", async () => {
     const lifecycle = createLifecycle();
 
     const initialized = await lifecycle.initialize();
-    assert.deepEqual(initialized, { hasVault: false, locked: true });
+    assert.deepEqual(initialized, { hasVault: false, locked: true, lastUnlockedAt: null });
 
     const createResult = await lifecycle.createVault("correct horse battery staple");
     assert.equal(createResult.ok, true);
@@ -28,6 +28,7 @@ test("vault lifecycle creates and persists an encrypted vault", async () => {
     assert.equal(status.hasVault, true);
     assert.equal(status.locked, false);
     assert.equal(lifecycle.getAutoLockMinutes(), 5);
+    assert.equal(status.lastUnlockedAt, "2026-07-16T10:00:00.000Z");
 });
 
 test("vault lifecycle rejects duplicate vault creation", async () => {
@@ -71,9 +72,10 @@ test("vault lifecycle initialize enforces locked state after vault exists", asyn
 
     const afterCreate = lifecycle.getStatus();
     assert.equal(afterCreate.locked, false);
+    assert.equal(afterCreate.lastUnlockedAt, "2026-07-16T10:00:00.000Z");
 
     const afterInitialize = await lifecycle.initialize();
-    assert.deepEqual(afterInitialize, { hasVault: true, locked: true });
+    assert.deepEqual(afterInitialize, { hasVault: true, locked: true, lastUnlockedAt: "2026-07-16T10:00:00.000Z" });
     assert.equal(lifecycle.getAutoLockMinutes(), null);
 });
 

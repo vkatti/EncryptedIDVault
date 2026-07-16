@@ -18,8 +18,8 @@ export type VaultLifecycleResult =
     };
 
 export interface VaultLifecycle {
-    initialize(): Promise<{ hasVault: boolean; locked: boolean }>;
-    getStatus(): { hasVault: boolean; locked: boolean };
+    initialize(): Promise<{ hasVault: boolean; locked: boolean; lastUnlockedAt: string | null }>;
+    getStatus(): { hasVault: boolean; locked: boolean; lastUnlockedAt: string | null };
     getAutoLockMinutes(): number | null;
     createVault(masterPassword: string): Promise<VaultLifecycleResult>;
     unlockVault(masterPassword: string): Promise<VaultLifecycleResult>;
@@ -53,6 +53,16 @@ export function createVaultLifecycle(options?: {
 
     let hasVault = false;
     let unlockedDocument: VaultDocument | null = null;
+    let lastUnlockedAt: string | null = null;
+
+    const persistUnlockedDocument = async (masterPassword: string, kdf?: VaultEnvelope["kdf"]): Promise<void> => {
+        if (!unlockedDocument) {
+            return;
+        }
+
+        const envelope = await createVaultEnvelope(unlockedDocument, masterPassword, kdf);
+        await repository.saveEnvelope(envelope);
+    };
 
     const lockInternal = async (): Promise<VaultLifecycleResult> => {
         unlockedDocument = null;
@@ -61,14 +71,18 @@ export function createVaultLifecycle(options?: {
 
     return {
         async initialize() {
-            hasVault = await repository.hasVault();
+            const envelope = await repository.readEnvelope();
+
+            hasVault = envelope !== null;
             unlockedDocument = null;
-            return { hasVault, locked: true };
+            lastUnlockedAt = envelope?.meta.lastUnlockedAt ?? null;
+            return { hasVault, locked: true, lastUnlockedAt };
         },
         getStatus() {
             return {
                 hasVault,
-                locked: unlockedDocument === null
+                locked: unlockedDocument === null,
+                lastUnlockedAt
             };
         },
         getAutoLockMinutes() {
@@ -79,12 +93,15 @@ export function createVaultLifecycle(options?: {
                 return { ok: false, error: "ERR_VAULT_ALREADY_EXISTS" };
             }
 
-            const document = createVaultDocument(createVaultId(), [], now());
+            const unlockedAt = now();
+            const document = createVaultDocument(createVaultId(), [], unlockedAt);
+            document.metadata.lastUnlockedAt = unlockedAt;
             const envelope = await createVaultEnvelope(document, masterPassword);
 
             await repository.saveEnvelope(envelope);
             hasVault = true;
             unlockedDocument = document;
+            lastUnlockedAt = unlockedAt;
 
             return { ok: true, hasVault: true, locked: false };
         },
@@ -103,8 +120,13 @@ export function createVaultLifecycle(options?: {
                 return { ok: false, error: "ERR_UNLOCK_INVALID_PASSWORD" };
             }
 
+            const unlockedAt = now();
             hasVault = true;
             unlockedDocument = result.value;
+            unlockedDocument.metadata.updatedAt = unlockedAt;
+            unlockedDocument.metadata.lastUnlockedAt = unlockedAt;
+            await persistUnlockedDocument(masterPassword, envelope.kdf);
+            lastUnlockedAt = unlockedAt;
             return { ok: true, hasVault: true, locked: false };
         },
         async lockVault() {

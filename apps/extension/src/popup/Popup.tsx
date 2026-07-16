@@ -5,6 +5,7 @@ type PopupStatus = {
     locked: boolean;
     hasVault: boolean;
     lastMessageAt: string | null;
+    lastUserTrigger: string | null;
 };
 
 type StatusResponse = {
@@ -22,7 +23,8 @@ export function Popup() {
         installedAt: null,
         locked: true,
         hasVault: false,
-        lastMessageAt: null
+        lastMessageAt: null,
+        lastUserTrigger: null
     });
     const [error, setError] = React.useState<string | null>(null);
 
@@ -55,6 +57,7 @@ export function Popup() {
             <p>Vault: {status.hasVault ? "present" : "not created yet"}</p>
             <p>State: {status.locked ? "locked" : "unlocked"}</p>
             {status.lastMessageAt ? <p>Last message: {status.lastMessageAt}</p> : null}
+            {status.lastUserTrigger ? <p>Last trigger: {status.lastUserTrigger}</p> : null}
             {error ? <p role="alert">{error}</p> : null}
             <button type="button" onClick={() => void refreshStatus()}>
                 Refresh status

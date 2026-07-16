@@ -5,6 +5,7 @@ import { createMessageEnvelope, isBackgroundMessage } from "@encrypted-id-vault/
 type ExtensionRuntimeState = {
     installedAt: string | null;
     lastMessageAt: string | null;
+    lastUserTrigger: string | null;
     locked: boolean;
     hasVault: boolean;
 };
@@ -12,6 +13,7 @@ type ExtensionRuntimeState = {
 const runtimeState: ExtensionRuntimeState = {
     installedAt: null,
     lastMessageAt: null,
+    lastUserTrigger: null,
     locked: true,
     hasVault: false
 };
@@ -61,6 +63,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onStartup.addListener(() => {
     runtimeState.locked = true;
     runtimeState.lastMessageAt = null;
+    runtimeState.lastUserTrigger = null;
     void loadInstalledAt();
 });
 
@@ -82,7 +85,8 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
                 installedAt: runtimeState.installedAt,
                 locked: runtimeState.locked,
                 hasVault: runtimeState.hasVault,
-                lastMessageAt: runtimeState.lastMessageAt
+                lastMessageAt: runtimeState.lastMessageAt,
+                lastUserTrigger: runtimeState.lastUserTrigger
             }
         });
         return false;
@@ -108,6 +112,7 @@ chrome.commands.onCommand.addListener((command) => {
     runtimeState.lastMessageAt = new Date().toISOString();
 
     if (command === COMMAND_IDS.openVaultPopup || command === COMMAND_IDS.insertSelectedEntry) {
+        runtimeState.lastUserTrigger = `command:${command}`;
         console.info(`[Encrypted ID Vault] Command received (placeholder): ${command}`);
     }
 });
@@ -116,6 +121,7 @@ chrome.contextMenus.onClicked.addListener((info) => {
     runtimeState.lastMessageAt = new Date().toISOString();
 
     if (info.menuItemId === CONTEXT_MENU_IDS.insertSelectedEntry) {
+        runtimeState.lastUserTrigger = "context-menu:insert-selected-entry";
         console.info("[Encrypted ID Vault] Context menu clicked (placeholder): insert-selected-entry");
     }
 });

@@ -208,3 +208,51 @@ test("vault lifecycle updateEntry returns not found for unknown entry ids", asyn
 
     assert.deepEqual(result, { ok: false, error: "ERR_ENTRY_NOT_FOUND" });
 });
+
+test("vault lifecycle keeps plaintext values out of persistent envelope storage", async () => {
+    const store = createMemoryVaultRecordStore();
+    const repository = createVaultRepository(store);
+    const lifecycle = createVaultLifecycle({
+        repository,
+        now: () => "2026-07-16T10:00:00.000Z",
+        createVaultId: () => "vault-phase1-test"
+    });
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+    await lifecycle.createEntry({
+        label: "PAN",
+        value: "ABCDE1234F",
+        category: "tax"
+    });
+
+    const envelope = await repository.readEnvelope();
+    assert.ok(envelope);
+    const serializedEnvelope = JSON.stringify(envelope);
+
+    assert.equal(serializedEnvelope.includes("ABCDE1234F"), false);
+    assert.equal(serializedEnvelope.includes("PAN"), false);
+});
+
+test("vault lifecycle wrong-password unlock does not mutate stored ciphertext", async () => {
+    const store = createMemoryVaultRecordStore();
+    const repository = createVaultRepository(store);
+    const lifecycle = createVaultLifecycle({
+        repository,
+        now: () => "2026-07-16T10:00:00.000Z",
+        createVaultId: () => "vault-phase1-test"
+    });
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+    await lifecycle.lockVault();
+
+    const before = await repository.readEnvelope();
+    assert.ok(before);
+
+    const unlockResult = await lifecycle.unlockVault("wrong password");
+    assert.deepEqual(unlockResult, { ok: false, error: "ERR_UNLOCK_INVALID_PASSWORD" });
+
+    const after = await repository.readEnvelope();
+    assert.deepEqual(after, before);
+});

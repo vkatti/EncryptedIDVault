@@ -1,0 +1,11 @@
+{
+    "name": "@encrypted-id-vault/backend",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "node --check src/server.js",
+        "dev": "node src/server.js",
+        "start": "node src/server.js",
+        "test": "node --test \"test/**/*.test.js\""
+    }
+}

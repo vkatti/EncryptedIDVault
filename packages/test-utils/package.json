@@ -1,0 +1,18 @@
+{
+    "name": "@encrypted-id-vault/test-utils",
+    "private": true,
+    "type": "module",
+    "main": "./src/index.ts",
+    "module": "./src/index.ts",
+    "exports": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "typecheck": "tsc -p tsconfig.json"
+    },
+    "dependencies": {
+        "@encrypted-id-vault/shared": "file:../shared"
+    },
+    "devDependencies": {
+        "typescript": "^5.9.2"
+    }
+}

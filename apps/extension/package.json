@@ -1,0 +1,25 @@
+{
+    "name": "@encrypted-id-vault/extension",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "node scripts/build.mjs",
+        "test": "node --test --import tsx \"test/**/*.test.ts\" \"test/**/*.test.mjs\"",
+        "typecheck": "tsc -p tsconfig.json"
+    },
+    "dependencies": {
+        "@encrypted-id-vault/crypto": "file:../../packages/crypto",
+        "@encrypted-id-vault/security": "file:../../packages/security",
+        "@encrypted-id-vault/shared": "file:../../packages/shared",
+        "@encrypted-id-vault/vault": "file:../../packages/vault",
+        "react": "^19.1.1",
+        "react-dom": "^19.1.1"
+    },
+    "devDependencies": {
+        "@types/chrome": "^0.0.326",
+        "@types/react": "^19.1.12",
+        "@types/react-dom": "^19.1.9",
+        "typescript": "^5.9.2",
+        "vite": "^7.1.1"
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "name": "@encrypted-id-vault/test-utils",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "typecheck": "tsc -p tsconfig.json"
+    },
+    "devDependencies": {
+        "typescript": "^5.9.2"
+    }
+}

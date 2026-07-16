@@ -1,4 +1,5 @@
 import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vault/shared";
+import type { VaultPreferences } from "@encrypted-id-vault/shared";
 
 import { createMessageEnvelope } from "@encrypted-id-vault/security";
 import { getCommandTriggerSource, getContextMenuTriggerSource } from "./triggerSource";
@@ -12,6 +13,7 @@ type ExtensionRuntimeState = {
     lastUnlockedAt: string | null;
     locked: boolean;
     hasVault: boolean;
+    preferences: VaultPreferences | null;
 };
 
 const runtimeState: ExtensionRuntimeState = {
@@ -20,7 +22,8 @@ const runtimeState: ExtensionRuntimeState = {
     lastUserTrigger: null,
     lastUnlockedAt: null,
     locked: true,
-    hasVault: false
+    hasVault: false,
+    preferences: null
 };
 
 const vaultLifecycle = createVaultLifecycle();
@@ -45,6 +48,7 @@ async function loadVaultStatus(): Promise<void> {
     runtimeState.hasVault = state.hasVault;
     runtimeState.locked = state.locked;
     runtimeState.lastUnlockedAt = state.lastUnlockedAt;
+    runtimeState.preferences = vaultLifecycle.getStatus().preferences;
 }
 
 function clearAutoLockAlarm(): void {
@@ -112,6 +116,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
             }
 
             runtimeState.lastUnlockedAt = vaultLifecycle.getStatus().lastUnlockedAt;
+            runtimeState.preferences = vaultLifecycle.getStatus().preferences;
         }
 
         sendResponse(response);
@@ -134,6 +139,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         runtimeState.hasVault = result.hasVault;
         runtimeState.locked = result.locked;
         runtimeState.lastUnlockedAt = vaultLifecycle.getStatus().lastUnlockedAt;
+        runtimeState.preferences = vaultLifecycle.getStatus().preferences;
         clearAutoLockAlarm();
     })();
 });

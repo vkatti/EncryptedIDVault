@@ -90,3 +90,34 @@ test("vault lifecycle lock clears unlocked session state", async () => {
     assert.equal(lifecycle.getAutoLockMinutes(), null);
     assert.equal(lifecycle.getStatus().locked, true);
 });
+
+test("vault lifecycle updates preferences and persists them in the encrypted envelope", async () => {
+    const store = createMemoryVaultRecordStore();
+    const repository = createVaultRepository(store);
+    const lifecycle = createVaultLifecycle({
+        repository,
+        now: () => "2026-07-16T10:00:00.000Z",
+        createVaultId: () => "vault-phase1-test"
+    });
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+
+    const updateResult = await lifecycle.updatePreferences({
+        autoLockMinutes: 15,
+        defaultInsertMode: "copy",
+        clipboardWarningEnabled: false,
+        theme: "dark",
+        telemetryEnabled: true
+    });
+
+    assert.equal(updateResult.ok, true);
+    const envelope = await repository.readEnvelope();
+
+    assert.ok(envelope);
+    assert.equal(envelope?.meta.updatedAt, "2026-07-16T10:00:00.000Z");
+    assert.equal(envelope?.meta.lastUnlockedAt, "2026-07-16T10:00:00.000Z");
+    assert.equal(lifecycle.getStatus().preferences?.autoLockMinutes, 15);
+    assert.equal(lifecycle.getStatus().preferences?.defaultInsertMode, "copy");
+    assert.equal(lifecycle.getStatus().preferences?.clipboardWarningEnabled, false);
+});

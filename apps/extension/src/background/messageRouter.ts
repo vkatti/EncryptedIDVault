@@ -1,4 +1,4 @@
-import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vault/shared";
+import type { BackgroundMessage, VaultGetStatusMessage, VaultPreferences } from "@encrypted-id-vault/shared";
 
 import type { VaultLifecycle } from "./vaultLifecycle";
 
@@ -9,6 +9,7 @@ export type RuntimeStateSnapshot = {
     lastUnlockedAt: string | null;
     locked: boolean;
     hasVault: boolean;
+    preferences: VaultPreferences | null;
 };
 
 export type BackgroundResponse =
@@ -22,8 +23,12 @@ export type BackgroundResponse =
         locked: boolean;
     }
     | {
+        ok: true;
+        preferences: VaultPreferences | null;
+    }
+    | {
         ok: false;
-        error: "ERR_UNHANDLED_MESSAGE" | "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_VAULT_ALREADY_EXISTS" | "ERR_VAULT_NOT_FOUND";
+        error: "ERR_UNHANDLED_MESSAGE" | "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_VAULT_ALREADY_EXISTS" | "ERR_VAULT_NOT_FOUND" | "ERR_VAULT_LOCKED";
     };
 
 async function applyLifecycleResult(
@@ -56,7 +61,8 @@ export async function routeBackgroundMessage(
                     hasVault: runtimeState.hasVault,
                     lastMessageAt: runtimeState.lastMessageAt,
                     lastUserTrigger: runtimeState.lastUserTrigger,
-                    lastUnlockedAt: runtimeState.lastUnlockedAt
+                    lastUnlockedAt: runtimeState.lastUnlockedAt,
+                    preferences: runtimeState.preferences
                 }
             };
         case "vault/create":
@@ -65,6 +71,18 @@ export async function routeBackgroundMessage(
             return applyLifecycleResult(await vaultLifecycle.unlockVault(message.payload.masterPassword), runtimeState);
         case "vault/lock":
             return applyLifecycleResult(await vaultLifecycle.lockVault(), runtimeState);
+        case "vault/updatePreferences": {
+            const result = await vaultLifecycle.updatePreferences(message.payload);
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            runtimeState.hasVault = result.hasVault;
+            runtimeState.locked = result.locked;
+            runtimeState.preferences = vaultLifecycle.getStatus().preferences;
+            return { ok: true, preferences: runtimeState.preferences };
+        }
         default:
             return { ok: false, error: "ERR_UNHANDLED_MESSAGE" };
     }

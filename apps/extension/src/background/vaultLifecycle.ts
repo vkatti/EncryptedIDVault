@@ -1,10 +1,10 @@
 import { createVaultEnvelope, openVaultEnvelope } from "@encrypted-id-vault/crypto";
-import type { VaultDocument, VaultEnvelope } from "@encrypted-id-vault/shared";
+import type { VaultDocument, VaultEnvelope, VaultPreferences } from "@encrypted-id-vault/shared";
 import { createVaultDocument, createVaultRepository, type VaultRecordStore, type VaultRepository } from "@encrypted-id-vault/vault";
 
 const VAULT_STORAGE_KEY = "vaultEnvelope";
 
-export type VaultLifecycleError = "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_VAULT_ALREADY_EXISTS" | "ERR_VAULT_NOT_FOUND";
+export type VaultLifecycleError = "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_VAULT_ALREADY_EXISTS" | "ERR_VAULT_NOT_FOUND" | "ERR_VAULT_LOCKED";
 
 export type VaultLifecycleResult =
     | {
@@ -19,11 +19,12 @@ export type VaultLifecycleResult =
 
 export interface VaultLifecycle {
     initialize(): Promise<{ hasVault: boolean; locked: boolean; lastUnlockedAt: string | null }>;
-    getStatus(): { hasVault: boolean; locked: boolean; lastUnlockedAt: string | null };
+    getStatus(): { hasVault: boolean; locked: boolean; lastUnlockedAt: string | null; preferences: VaultPreferences | null };
     getAutoLockMinutes(): number | null;
     createVault(masterPassword: string): Promise<VaultLifecycleResult>;
     unlockVault(masterPassword: string): Promise<VaultLifecycleResult>;
     lockVault(): Promise<VaultLifecycleResult>;
+    updatePreferences(preferences: Partial<VaultPreferences>): Promise<VaultLifecycleResult>;
 }
 
 export function createChromeVaultRecordStore(storage: chrome.storage.StorageArea = chrome.storage.local): VaultRecordStore {
@@ -54,18 +55,22 @@ export function createVaultLifecycle(options?: {
     let hasVault = false;
     let unlockedDocument: VaultDocument | null = null;
     let lastUnlockedAt: string | null = null;
+    let currentEnvelope: VaultEnvelope | null = null;
+    let currentMasterPassword: string | null = null;
 
-    const persistUnlockedDocument = async (masterPassword: string, kdf?: VaultEnvelope["kdf"]): Promise<void> => {
-        if (!unlockedDocument) {
+    const persistUnlockedDocument = async (): Promise<void> => {
+        if (!unlockedDocument || !currentMasterPassword || !currentEnvelope) {
             return;
         }
 
-        const envelope = await createVaultEnvelope(unlockedDocument, masterPassword, kdf);
+        const envelope = await createVaultEnvelope(unlockedDocument, currentMasterPassword, currentEnvelope.kdf);
         await repository.saveEnvelope(envelope);
+        currentEnvelope = envelope;
     };
 
     const lockInternal = async (): Promise<VaultLifecycleResult> => {
         unlockedDocument = null;
+        currentMasterPassword = null;
         return { ok: true, hasVault, locked: true };
     };
 
@@ -75,6 +80,8 @@ export function createVaultLifecycle(options?: {
 
             hasVault = envelope !== null;
             unlockedDocument = null;
+            currentEnvelope = envelope;
+            currentMasterPassword = null;
             lastUnlockedAt = envelope?.meta.lastUnlockedAt ?? null;
             return { hasVault, locked: true, lastUnlockedAt };
         },
@@ -82,7 +89,8 @@ export function createVaultLifecycle(options?: {
             return {
                 hasVault,
                 locked: unlockedDocument === null,
-                lastUnlockedAt
+                lastUnlockedAt,
+                preferences: unlockedDocument ? unlockedDocument.preferences : null
             };
         },
         getAutoLockMinutes() {
@@ -101,6 +109,8 @@ export function createVaultLifecycle(options?: {
             await repository.saveEnvelope(envelope);
             hasVault = true;
             unlockedDocument = document;
+            currentEnvelope = envelope;
+            currentMasterPassword = masterPassword;
             lastUnlockedAt = unlockedAt;
 
             return { ok: true, hasVault: true, locked: false };
@@ -123,14 +133,30 @@ export function createVaultLifecycle(options?: {
             const unlockedAt = now();
             hasVault = true;
             unlockedDocument = result.value;
+            currentEnvelope = envelope;
+            currentMasterPassword = masterPassword;
             unlockedDocument.metadata.updatedAt = unlockedAt;
             unlockedDocument.metadata.lastUnlockedAt = unlockedAt;
-            await persistUnlockedDocument(masterPassword, envelope.kdf);
+            await persistUnlockedDocument();
             lastUnlockedAt = unlockedAt;
             return { ok: true, hasVault: true, locked: false };
         },
         async lockVault() {
             return lockInternal();
+        },
+        async updatePreferences(preferences) {
+            if (!unlockedDocument) {
+                return { ok: false, error: "ERR_VAULT_LOCKED" };
+            }
+
+            unlockedDocument.preferences = {
+                ...unlockedDocument.preferences,
+                ...preferences
+            };
+            unlockedDocument.metadata.updatedAt = now();
+            await persistUnlockedDocument();
+
+            return { ok: true, hasVault: true, locked: false };
         }
     };
 }

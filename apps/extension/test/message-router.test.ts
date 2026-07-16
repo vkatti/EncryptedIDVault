@@ -13,7 +13,8 @@ function createRuntimeState(): RuntimeStateSnapshot {
         lastUserTrigger: "command:open-vault-popup",
         lastUnlockedAt: null,
         locked: true,
-        hasVault: false
+        hasVault: false,
+        preferences: null
     };
 }
 
@@ -38,6 +39,9 @@ function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecyc
         getAutoLockMinutes() {
             return 5;
         },
+        getStatus() {
+            return { hasVault: false, locked: true, lastUnlockedAt: null, preferences: null };
+        },
         async createVault() {
             return { ok: true, hasVault: true, locked: false };
         },
@@ -46,6 +50,9 @@ function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecyc
         },
         async lockVault() {
             return { ok: true, hasVault: true, locked: true };
+        },
+        async updatePreferences() {
+            return { ok: true, hasVault: true, locked: false };
         },
         ...overrides
     };

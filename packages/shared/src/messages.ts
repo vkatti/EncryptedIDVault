@@ -49,10 +49,19 @@ export interface SyncProviderPayload {
     provider: "drive" | "dropbox";
 }
 
+export interface VaultPreferencesUpdatePayload {
+    autoLockMinutes?: number;
+    defaultInsertMode?: "insert" | "copy";
+    clipboardWarningEnabled?: boolean;
+    theme?: "system" | "light" | "dark";
+    telemetryEnabled?: boolean;
+}
+
 export type VaultGetStatusMessage = MessageEnvelope<"vault/getStatus", EmptyPayload>;
 export type VaultCreateMessage = MessageEnvelope<"vault/create", CreateVaultPayload>;
 export type VaultUnlockMessage = MessageEnvelope<"vault/unlock", UnlockVaultPayload>;
 export type VaultLockMessage = MessageEnvelope<"vault/lock", LockVaultPayload>;
+export type VaultUpdatePreferencesMessage = MessageEnvelope<"vault/updatePreferences", VaultPreferencesUpdatePayload>;
 export type EntriesListMessage = MessageEnvelope<"entries/list", ListEntriesPayload>;
 export type EntriesInsertMessage = MessageEnvelope<"entries/insert", InsertEntryPayload>;
 export type InsertTargetMessage = MessageEnvelope<"insert/target", InsertTargetPayload>;
@@ -63,6 +72,7 @@ export type BackgroundMessage =
     | VaultCreateMessage
     | VaultUnlockMessage
     | VaultLockMessage
+    | VaultUpdatePreferencesMessage
     | EntriesListMessage
     | EntriesInsertMessage
     | InsertTargetMessage

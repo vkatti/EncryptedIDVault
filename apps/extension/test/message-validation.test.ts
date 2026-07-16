@@ -87,6 +87,24 @@ test("isBackgroundMessage accepts valid vault/create envelopes", () => {
     assert.equal(isBackgroundMessage(message), true);
 });
 
+test("isBackgroundMessage accepts valid vault/updatePreferences envelopes", () => {
+    const message = {
+        id: "msg-6c",
+        type: "vault/updatePreferences",
+        source: "popup",
+        target: "background",
+        payload: {
+            autoLockMinutes: 10,
+            defaultInsertMode: "copy",
+            clipboardWarningEnabled: false,
+            theme: "dark",
+            telemetryEnabled: false
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
 test("isBackgroundMessage rejects messages from non-popup sources", () => {
     const message = {
         id: "msg-7",
@@ -130,6 +148,20 @@ test("isBackgroundMessage rejects vault/create with blank password", () => {
         source: "popup",
         target: "background",
         payload: { masterPassword: "   " }
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});
+
+test("isBackgroundMessage rejects vault/updatePreferences with an invalid field value", () => {
+    const message = {
+        id: "msg-11",
+        type: "vault/updatePreferences",
+        source: "popup",
+        target: "background",
+        payload: {
+            autoLockMinutes: -1
+        }
     };
 
     assert.equal(isBackgroundMessage(message), false);

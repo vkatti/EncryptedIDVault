@@ -74,6 +74,16 @@ export type VaultUpdateEntryResult =
         error: "ERR_VAULT_LOCKED" | "ERR_ENTRY_NOT_FOUND";
     };
 
+export type VaultDeleteEntryResult =
+    | {
+        ok: true;
+        deletedEntryId: string;
+    }
+    | {
+        ok: false;
+        error: "ERR_VAULT_LOCKED" | "ERR_ENTRY_NOT_FOUND";
+    };
+
 export interface VaultLifecycle {
     initialize(): Promise<{ hasVault: boolean; locked: boolean; lastUnlockedAt: string | null }>;
     getStatus(): { hasVault: boolean; locked: boolean; lastUnlockedAt: string | null; preferences: VaultPreferences | null };
@@ -85,6 +95,7 @@ export interface VaultLifecycle {
     listEntries(filters?: { query?: string; favoritesOnly?: boolean }): Promise<VaultListEntriesResult>;
     createEntry(entryInput: EntryCreateInput): Promise<VaultCreateEntryResult>;
     updateEntry(entryId: string, updates: EntryUpdateInput): Promise<VaultUpdateEntryResult>;
+    deleteEntry(entryId: string): Promise<VaultDeleteEntryResult>;
 }
 
 export function createChromeVaultRecordStore(storage: chrome.storage.StorageArea = chrome.storage.local): VaultRecordStore {
@@ -303,6 +314,23 @@ export function createVaultLifecycle(options?: {
             await persistUnlockedDocument();
 
             return { ok: true, entry: { ...updatedEntry } };
+        },
+        async deleteEntry(entryId) {
+            if (!unlockedDocument) {
+                return { ok: false, error: "ERR_VAULT_LOCKED" };
+            }
+
+            const hasEntry = unlockedDocument.entries.some((entry) => entry.id === entryId);
+            if (!hasEntry) {
+                return { ok: false, error: "ERR_ENTRY_NOT_FOUND" };
+            }
+
+            const timestamp = now();
+            unlockedDocument.entries = unlockedDocument.entries.filter((entry) => entry.id !== entryId);
+            unlockedDocument.metadata.updatedAt = timestamp;
+            await persistUnlockedDocument();
+
+            return { ok: true, deletedEntryId: entryId };
         }
     };
 }

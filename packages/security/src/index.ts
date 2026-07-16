@@ -6,6 +6,7 @@ import type {
     MessageTarget,
     UpdateEntryPayload,
     EntriesCreateMessage,
+    EntriesDeleteMessage,
     EntriesListMessage,
     EntriesUpdateMessage,
     VaultCreateMessage,
@@ -25,6 +26,7 @@ const PREFERENCE_KEYS = ["autoLockMinutes", "defaultInsertMode", "clipboardWarni
 const ENTRY_CREATE_KEYS = ["label", "value", "category", "notes", "favorite", "domainAllowlist", "copyModeAllowed", "insertModeAllowed"] as const;
 const ENTRY_UPDATE_KEYS = ["entryId", "label", "value", "category", "notes", "favorite", "domainAllowlist", "copyModeAllowed", "insertModeAllowed"] as const;
 const ENTRY_LIST_KEYS = ["query", "favoritesOnly"] as const;
+const ENTRY_DELETE_KEYS = ["entryId"] as const;
 
 type RoutedBackgroundMessage =
     | VaultGetStatusMessage
@@ -34,7 +36,8 @@ type RoutedBackgroundMessage =
     | VaultUpdatePreferencesMessage
     | EntriesListMessage
     | EntriesCreateMessage
-    | EntriesUpdateMessage;
+    | EntriesUpdateMessage
+    | EntriesDeleteMessage;
 
 export function isErrorCode(value: unknown): value is ErrorCode {
     return typeof value === "string" && (ERROR_CODES as readonly string[]).includes(value);
@@ -147,6 +150,14 @@ function isListEntriesPayload(payload: unknown): payload is ListEntriesPayload {
     return isOptionalString(payload.query) && isOptionalBoolean(payload.favoritesOnly);
 }
 
+function isDeleteEntryPayload(payload: unknown): payload is { entryId: string } {
+    if (!isRecord(payload)) {
+        return false;
+    }
+
+    return hasOnlyKeys(payload, ENTRY_DELETE_KEYS) && isNonEmptyString(payload.entryId);
+}
+
 export function isVaultGetStatusMessage(value: unknown): value is VaultGetStatusMessage {
     return isBackgroundRoutedEnvelope(value) && value.type === "vault/getStatus" && isRecord(value.payload) && hasOnlyKeys(value.payload, []);
 }
@@ -220,6 +231,10 @@ export function isEntriesUpdateMessage(value: unknown): value is EntriesUpdateMe
     return isBackgroundRoutedEnvelope(value) && value.type === "entries/update" && isUpdateEntryPayload(value.payload);
 }
 
+export function isEntriesDeleteMessage(value: unknown): value is EntriesDeleteMessage {
+    return isBackgroundRoutedEnvelope(value) && value.type === "entries/delete" && isDeleteEntryPayload(value.payload);
+}
+
 export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMessage {
     return (
         isVaultGetStatusMessage(value) ||
@@ -229,7 +244,8 @@ export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMe
         isVaultUpdatePreferencesMessage(value) ||
         isEntriesListMessage(value) ||
         isEntriesCreateMessage(value) ||
-        isEntriesUpdateMessage(value)
+        isEntriesUpdateMessage(value) ||
+        isEntriesDeleteMessage(value)
     );
 }
 

@@ -38,6 +38,7 @@ type EntryListResponse = {
 type EntryMutationResponse = {
     ok: boolean;
     entry?: VaultEntry;
+    deletedEntryId?: string;
     error?: string;
 };
 
@@ -130,6 +131,18 @@ async function updateEntryMessage(payload: {
         createMessageEnvelope({
             id: crypto.randomUUID(),
             type: "entries/update",
+            source: "popup",
+            target: "background",
+            payload
+        })
+    )) as EntryMutationResponse;
+}
+
+async function deleteEntryMessage(payload: { entryId: string }): Promise<EntryMutationResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "entries/delete",
             source: "popup",
             target: "background",
             payload
@@ -341,6 +354,25 @@ export function Popup() {
         setBusy(false);
     }, [cancelEditingEntry, editingEntry, editingEntryId, loadEntries]);
 
+    const deleteEntry = React.useCallback(async (entryId: string) => {
+        setBusy(true);
+        const response = await deleteEntryMessage({ entryId });
+
+        if (!response.ok) {
+            setError(response.error ?? "Unable to delete entry");
+            setBusy(false);
+            return;
+        }
+
+        if (editingEntryId === entryId) {
+            cancelEditingEntry();
+        }
+
+        setError(null);
+        await loadEntries();
+        setBusy(false);
+    }, [cancelEditingEntry, editingEntryId, loadEntries]);
+
     return (
         <main>
             <h1>Encrypted ID Vault</h1>
@@ -533,6 +565,9 @@ export function Popup() {
                                     <p>Favorite: {entry.favorite ? "yes" : "no"}</p>
                                     <button type="button" disabled={busy} onClick={() => startEditingEntry(entry)}>
                                         Edit entry
+                                    </button>
+                                    <button type="button" disabled={busy} onClick={() => void deleteEntry(entry.id)}>
+                                        Delete entry
                                     </button>
                                 </>
                             )}

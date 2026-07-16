@@ -88,6 +88,9 @@ function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecyc
                 }
             };
         },
+        async deleteEntry(entryId) {
+            return { ok: true, deletedEntryId: entryId };
+        },
         ...overrides
     };
 }
@@ -227,4 +230,28 @@ test("routeBackgroundMessage routes entries/create and entries/update", async ()
     }
 
     assert.fail("Expected update entry response");
+});
+
+test("routeBackgroundMessage routes entries/delete", async () => {
+    const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
+
+    const deleteMessage = {
+        id: "message-7",
+        type: "entries/delete",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1"
+        }
+    } satisfies BackgroundMessage;
+
+    const deleteResult = await routeBackgroundMessage(deleteMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    assert.equal(deleteResult.ok, true);
+    if ("deletedEntryId" in deleteResult) {
+        assert.equal(deleteResult.deletedEntryId, "entry-1");
+        return;
+    }
+
+    assert.fail("Expected delete entry response");
 });

@@ -58,6 +58,10 @@ export interface UpdateEntryPayload {
     insertModeAllowed?: boolean;
 }
 
+export interface DeleteEntryPayload {
+    entryId: string;
+}
+
 export interface InsertEntryPayload {
     entryId: string;
     fallbackToClipboard?: boolean;
@@ -88,6 +92,7 @@ export type VaultUpdatePreferencesMessage = MessageEnvelope<"vault/updatePrefere
 export type EntriesListMessage = MessageEnvelope<"entries/list", ListEntriesPayload>;
 export type EntriesCreateMessage = MessageEnvelope<"entries/create", CreateEntryPayload>;
 export type EntriesUpdateMessage = MessageEnvelope<"entries/update", UpdateEntryPayload>;
+export type EntriesDeleteMessage = MessageEnvelope<"entries/delete", DeleteEntryPayload>;
 export type EntriesInsertMessage = MessageEnvelope<"entries/insert", InsertEntryPayload>;
 export type InsertTargetMessage = MessageEnvelope<"insert/target", InsertTargetPayload>;
 export type SyncConnectProviderMessage = MessageEnvelope<"sync/connectProvider", SyncProviderPayload>;
@@ -101,6 +106,7 @@ export type BackgroundMessage =
     | EntriesListMessage
     | EntriesCreateMessage
     | EntriesUpdateMessage
+    | EntriesDeleteMessage
     | EntriesInsertMessage
     | InsertTargetMessage
     | SyncConnectProviderMessage;

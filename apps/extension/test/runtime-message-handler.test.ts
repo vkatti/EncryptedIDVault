@@ -88,6 +88,9 @@ function createVaultLifecycle(): VaultLifecycle {
                     insertModeAllowed: true
                 }
             };
+        },
+        async deleteEntry(entryId) {
+            return { ok: true, deletedEntryId: entryId };
         }
     };
 }

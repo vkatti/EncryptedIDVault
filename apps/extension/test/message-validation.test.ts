@@ -228,3 +228,32 @@ test("isBackgroundMessage accepts entries/update with valid patch", () => {
 
     assert.equal(isBackgroundMessage(message), true);
 });
+
+test("isBackgroundMessage accepts entries/delete with valid payload", () => {
+    const message = {
+        id: "msg-16",
+        type: "entries/delete",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1"
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage rejects entries/delete with invalid payload", () => {
+    const message = {
+        id: "msg-17",
+        type: "entries/delete",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "  ",
+            unexpected: true
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});

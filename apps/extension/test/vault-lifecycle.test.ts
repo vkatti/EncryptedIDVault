@@ -178,6 +178,35 @@ test("vault lifecycle creates, lists, and updates entries while unlocked", async
     assert.equal(envelope?.meta.updatedAt, "2026-07-16T10:00:00.000Z");
 });
 
+test("vault lifecycle deletes entries while unlocked", async () => {
+    const lifecycle = createLifecycle();
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+
+    const created = await lifecycle.createEntry({
+        label: "Primary Email",
+        value: "demo@example.com",
+        category: "identity"
+    });
+
+    assert.equal(created.ok, true);
+    if (!created.ok) {
+        assert.fail("Expected createEntry to succeed");
+    }
+
+    const deleted = await lifecycle.deleteEntry(created.entry.id);
+    assert.deepEqual(deleted, { ok: true, deletedEntryId: created.entry.id });
+
+    const listed = await lifecycle.listEntries();
+    assert.equal(listed.ok, true);
+    if (!listed.ok) {
+        assert.fail("Expected listEntries to succeed");
+    }
+
+    assert.equal(listed.entries.length, 0);
+});
+
 test("vault lifecycle entry operations are blocked when vault is locked", async () => {
     const lifecycle = createLifecycle();
 
@@ -192,10 +221,12 @@ test("vault lifecycle entry operations are blocked when vault is locked", async 
         category: "identity"
     });
     const updateResult = await lifecycle.updateEntry("missing", { label: "Updated" });
+    const deleteResult = await lifecycle.deleteEntry("missing");
 
     assert.deepEqual(listResult, { ok: false, error: "ERR_VAULT_LOCKED" });
     assert.deepEqual(createResult, { ok: false, error: "ERR_VAULT_LOCKED" });
     assert.deepEqual(updateResult, { ok: false, error: "ERR_VAULT_LOCKED" });
+    assert.deepEqual(deleteResult, { ok: false, error: "ERR_VAULT_LOCKED" });
 });
 
 test("vault lifecycle updateEntry returns not found for unknown entry ids", async () => {
@@ -205,6 +236,17 @@ test("vault lifecycle updateEntry returns not found for unknown entry ids", asyn
     await lifecycle.createVault("correct horse battery staple");
 
     const result = await lifecycle.updateEntry("missing-entry", { label: "Updated" });
+
+    assert.deepEqual(result, { ok: false, error: "ERR_ENTRY_NOT_FOUND" });
+});
+
+test("vault lifecycle deleteEntry returns not found for unknown entry ids", async () => {
+    const lifecycle = createLifecycle();
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+
+    const result = await lifecycle.deleteEntry("missing-entry");
 
     assert.deepEqual(result, { ok: false, error: "ERR_ENTRY_NOT_FOUND" });
 });

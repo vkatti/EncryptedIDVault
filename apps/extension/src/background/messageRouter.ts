@@ -35,6 +35,10 @@ export type BackgroundResponse =
         entry: VaultEntry;
     }
     | {
+        ok: true;
+        deletedEntryId: string;
+    }
+    | {
         ok: false;
         error:
         | "ERR_UNHANDLED_MESSAGE"
@@ -124,6 +128,15 @@ export async function routeBackgroundMessage(
             }
 
             return { ok: true, entry: result.entry };
+        }
+        case "entries/delete": {
+            const result = await vaultLifecycle.deleteEntry(message.payload.entryId);
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            return { ok: true, deletedEntryId: result.deletedEntryId };
         }
         default:
             return { ok: false, error: "ERR_UNHANDLED_MESSAGE" };

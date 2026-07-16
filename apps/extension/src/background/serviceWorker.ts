@@ -119,6 +119,13 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
             runtimeState.preferences = vaultLifecycle.getStatus().preferences;
         }
 
+        const shouldRefreshAutoLock =
+            !(response.ok === false && response.error === "ERR_INVALID_MESSAGE") && runtimeState.hasVault && !runtimeState.locked;
+
+        if (shouldRefreshAutoLock) {
+            scheduleAutoLockAlarm();
+        }
+
         sendResponse(response);
     })();
     return true;

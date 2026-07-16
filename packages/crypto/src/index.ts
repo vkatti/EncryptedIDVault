@@ -135,7 +135,7 @@ export async function openVaultEnvelope(envelope: VaultEnvelope, masterPassword:
         if (expectedIntegrity !== envelope.integrity.value) {
             return {
                 ok: false,
-                error: createAppError("ERR_VAULT_CORRUPT", "Vault integrity check failed")
+                error: createAppError("ERR_UNLOCK_INVALID_PASSWORD", "Unable to unlock vault")
             };
         }
 

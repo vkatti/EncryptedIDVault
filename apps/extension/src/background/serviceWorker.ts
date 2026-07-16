@@ -1,6 +1,7 @@
 import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vault/shared";
 
 import { createMessageEnvelope, isBackgroundMessage } from "@encrypted-id-vault/security";
+import { getCommandTriggerSource, getContextMenuTriggerSource } from "./triggerSource";
 
 type ExtensionRuntimeState = {
     installedAt: string | null;
@@ -111,8 +112,10 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 chrome.commands.onCommand.addListener((command) => {
     runtimeState.lastMessageAt = new Date().toISOString();
 
-    if (command === COMMAND_IDS.openVaultPopup || command === COMMAND_IDS.insertSelectedEntry) {
-        runtimeState.lastUserTrigger = `command:${command}`;
+    const triggerSource = getCommandTriggerSource(command, [COMMAND_IDS.openVaultPopup, COMMAND_IDS.insertSelectedEntry]);
+
+    if (triggerSource) {
+        runtimeState.lastUserTrigger = triggerSource;
         console.info(`[Encrypted ID Vault] Command received (placeholder): ${command}`);
     }
 });
@@ -120,8 +123,10 @@ chrome.commands.onCommand.addListener((command) => {
 chrome.contextMenus.onClicked.addListener((info) => {
     runtimeState.lastMessageAt = new Date().toISOString();
 
-    if (info.menuItemId === CONTEXT_MENU_IDS.insertSelectedEntry) {
-        runtimeState.lastUserTrigger = "context-menu:insert-selected-entry";
+    const triggerSource = getContextMenuTriggerSource(info.menuItemId, CONTEXT_MENU_IDS.insertSelectedEntry);
+
+    if (triggerSource) {
+        runtimeState.lastUserTrigger = triggerSource;
         console.info("[Encrypted ID Vault] Context menu clicked (placeholder): insert-selected-entry");
     }
 });

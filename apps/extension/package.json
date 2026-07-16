@@ -4,7 +4,7 @@
     "type": "module",
     "scripts": {
         "build": "node scripts/build.mjs",
-        "test": "node --test \"test/**/*.test.mjs\"",
+        "test": "node --test --import tsx \"test/**/*.test.ts\" \"test/**/*.test.mjs\"",
         "typecheck": "tsc -p tsconfig.json"
     },
     "dependencies": {

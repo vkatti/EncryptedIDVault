@@ -91,6 +91,27 @@ function getPasswordStrength(password: string): "weak" | "medium" | "strong" {
     return "weak";
 }
 
+function getVaultExportErrorMessage(errorCode?: string): string {
+    if (errorCode === "ERR_VAULT_NOT_FOUND") {
+        return "No vault exists yet. Create a vault before exporting.";
+    }
+
+    return "Unable to export vault. Try again.";
+}
+
+function getVaultImportErrorMessage(errorCode?: string): string {
+    switch (errorCode) {
+        case "ERR_UNLOCK_INVALID_PASSWORD":
+            return "Import failed: the master password does not match the imported vault.";
+        case "ERR_IMPORT_SCHEMA_UNSUPPORTED":
+            return "Import failed: this vault file uses an unsupported schema version.";
+        case "ERR_VAULT_CORRUPT":
+            return "Import failed: the vault file appears corrupted or tampered.";
+        default:
+            return "Unable to import vault. Verify the file and password, then try again.";
+    }
+}
+
 async function sendMessage(action: Action, payload: Record<string, unknown>): Promise<StatusResponse> {
     return (await chrome.runtime.sendMessage(
         createMessageEnvelope({
@@ -519,13 +540,14 @@ export function Popup() {
         const response = await exportVaultMessage();
 
         if (!response.ok || !response.file) {
-            setError(response.error ?? "Unable to export vault");
+            setError(getVaultExportErrorMessage(response.error));
             setBusy(false);
             return;
         }
 
         downloadVaultFile(response.file);
         setLastExportSummary(`Exported encrypted vault at ${response.file.exportedAt}`);
+        setLastImportSummary(null);
         setError(null);
         setBusy(false);
     }, []);
@@ -543,6 +565,7 @@ export function Popup() {
             const parsed = await readImportFile(selected);
             setImportFile(parsed);
             setImportFileName(selected.name);
+            setLastImportSummary(null);
             setError(null);
         } catch {
             setImportFile(null);
@@ -570,7 +593,7 @@ export function Popup() {
         });
 
         if (!response.ok) {
-            setError(response.error ?? "Unable to import vault");
+            setError(getVaultImportErrorMessage(response.error));
             setBusy(false);
             return;
         }
@@ -580,6 +603,7 @@ export function Popup() {
         setImportPassword("");
         setImportFile(null);
         setImportFileName(null);
+        setLastExportSummary(null);
         setLastImportSummary(`Imported ${response.entryCount ?? 0} entries using ${response.mode ?? importMode} mode`);
         if (importFileInputRef.current) {
             importFileInputRef.current.value = "";
@@ -661,11 +685,12 @@ export function Popup() {
                     <h3>Import encrypted vault</h3>
                     <label>
                         Import mode
-                        <select value={importMode} onChange={(event) => setImportMode(event.target.value as "replace" | "merge") }>
+                        <select value={importMode} onChange={(event) => setImportMode(event.target.value as "replace" | "merge")}>
                             <option value="merge">Merge with current vault</option>
                             <option value="replace">Replace current vault</option>
                         </select>
                     </label>
+                    {importMode === "replace" ? <p>Replace mode will overwrite your current encrypted vault with the imported file.</p> : null}
                     <label>
                         Vault file
                         <input ref={importFileInputRef} type="file" accept=".json,.enc.json,application/json" onChange={(event) => void selectImportFile(event)} />

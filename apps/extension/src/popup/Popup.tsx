@@ -36,6 +36,13 @@ type InsertResponse = {
     error?: string;
 };
 
+type VaultImportResponse = {
+    ok: boolean;
+    mode?: "replace" | "merge";
+    entryCount?: number;
+    error?: string;
+};
+
 type Action = "vault/getStatus" | "vault/create" | "vault/unlock" | "vault/lock";
 
 function getPasswordStrength(password: string): "weak" | "medium" | "strong" {
@@ -113,6 +120,22 @@ async function insertEntryMessage(payload: { entryId: string; tabId?: number; fa
     )) as InsertResponse;
 }
 
+async function importVaultMessage(payload: {
+    file: VaultExportFile;
+    masterPassword: string;
+    mode: "replace" | "merge";
+}): Promise<VaultImportResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "vault/import",
+            source: "popup",
+            target: "background",
+            payload
+        })
+    )) as VaultImportResponse;
+}
+
 async function getActiveTabId(): Promise<number | undefined> {
     const tabs = await chrome.tabs.query({ active: true, windowType: "normal" });
     const tabId = tabs[0]?.id;
@@ -147,6 +170,17 @@ export function isVaultExportFile(value: unknown): value is VaultExportFile {
     return candidate.formatVersion === 1 && typeof candidate.exportedAt === "string" && typeof candidate.envelope === "object";
 }
 
+async function readImportFile(file: File): Promise<VaultExportFile> {
+    const raw = await file.text();
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (!isVaultExportFile(parsed)) {
+        throw new Error("Invalid export file format");
+    }
+
+    return parsed;
+}
+
 export function Popup() {
     const [status, setStatus] = React.useState<PopupStatus>({
         installedAt: null,
@@ -163,6 +197,12 @@ export function Popup() {
     const [busy, setBusy] = React.useState(false);
     const [entries, setEntries] = React.useState<VaultEntry[]>([]);
     const [entryFilters, setEntryFilters] = React.useState({ query: "", favoritesOnly: false });
+    const [firstLaunchChoice, setFirstLaunchChoice] = React.useState<"create" | "import">("create");
+    const [importMode, setImportMode] = React.useState<"replace" | "merge">("replace");
+    const [importPassword, setImportPassword] = React.useState("");
+    const [importFile, setImportFile] = React.useState<VaultExportFile | null>(null);
+    const [importFileName, setImportFileName] = React.useState<string | null>(null);
+    const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
     const passwordStrength = getPasswordStrength(masterPassword);
 
     const refreshStatus = React.useCallback(async () => {
@@ -230,6 +270,64 @@ export function Popup() {
     React.useEffect(() => {
         void loadEntries();
     }, [loadEntries]);
+
+    const selectImportFile = React.useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const selected = event.target.files?.[0];
+
+        if (!selected) {
+            setImportFile(null);
+            setImportFileName(null);
+            return;
+        }
+
+        try {
+            const parsed = await readImportFile(selected);
+            setImportFile(parsed);
+            setImportFileName(selected.name);
+            setError(null);
+        } catch {
+            setImportFile(null);
+            setImportFileName(null);
+            setError("Selected file is not a valid encrypted vault export");
+        }
+    }, []);
+
+    const importExistingVault = React.useCallback(async () => {
+        if (!importFile) {
+            setError("Select a vault export file before importing");
+            return;
+        }
+
+        if (importPassword.trim().length === 0) {
+            setError("Master password is required for import");
+            return;
+        }
+
+        setBusy(true);
+        const response = await importVaultMessage({
+            file: importFile,
+            masterPassword: importPassword,
+            mode: importMode
+        });
+
+        if (!response.ok) {
+            setError(getVaultImportErrorMessage(response.error));
+            setSummary(null);
+            setBusy(false);
+            return;
+        }
+
+        setError(null);
+        setSummary(`Imported ${response.entryCount ?? 0} entries`);
+        setImportPassword("");
+        setImportFile(null);
+        setImportFileName(null);
+        if (importFileInputRef.current) {
+            importFileInputRef.current.value = "";
+        }
+        await refreshStatus();
+        setBusy(false);
+    }, [importFile, importMode, importPassword, refreshStatus]);
 
     const triggerEntry = React.useCallback(async (entryId: string) => {
         setBusy(true);
@@ -429,6 +527,33 @@ export function Popup() {
                     padding: 8px;
                     font-size: 0.85rem;
                 }
+                .launch-choice {
+                    display: inline-flex;
+                    gap: 6px;
+                    border: 1px solid #d7e2ee;
+                    border-radius: 999px;
+                    padding: 4px;
+                    background: #f8fbff;
+                }
+                .launch-choice button {
+                    border-radius: 999px;
+                    padding: 5px 10px;
+                    border: 1px solid transparent;
+                    background: transparent;
+                    color: #486581;
+                }
+                .launch-choice button.active {
+                    background: #0b6e4f;
+                    color: #fff;
+                }
+                select {
+                    border: 1px solid #b4c6d8;
+                    border-radius: 8px;
+                    padding: 8px;
+                    font: inherit;
+                    color: #102a43;
+                    background: #fff;
+                }
             `}</style>
 
             <section className="card">
@@ -443,10 +568,80 @@ export function Popup() {
                     <span className="status-pill">{status.locked ? "Locked" : "Unlocked"}</span>
                     <span className="muted">{status.hasVault ? "Vault ready" : "No vault yet"}</span>
                 </div>
-                {!status.hasVault ? <p className="muted">Create your vault to start storing entries. Advanced settings are in Options.</p> : null}
+                {!status.hasVault ? <p className="muted">First launch: create a new vault or import an existing encrypted vault file.</p> : null}
                 {status.hasVault && status.locked ? <p className="muted">Unlock to use your entries in this tab.</p> : null}
 
-                {!status.hasVault || status.locked ? (
+                {!status.hasVault ? (
+                    <>
+                        <div className="launch-choice" role="tablist" aria-label="First launch options">
+                            <button
+                                type="button"
+                                className={firstLaunchChoice === "create" ? "active" : ""}
+                                onClick={() => setFirstLaunchChoice("create")}
+                            >
+                                Create new
+                            </button>
+                            <button
+                                type="button"
+                                className={firstLaunchChoice === "import" ? "active" : ""}
+                                onClick={() => setFirstLaunchChoice("import")}
+                            >
+                                Import existing
+                            </button>
+                        </div>
+
+                        {firstLaunchChoice === "create" ? (
+                            <>
+                                <label>
+                                    Master password
+                                    <input
+                                        type="password"
+                                        value={masterPassword}
+                                        minLength={8}
+                                        onChange={(event) => setMasterPassword(event.target.value)}
+                                        placeholder="Enter master password"
+                                    />
+                                </label>
+                                <p className="muted">Password strength: {passwordStrength}</p>
+                                <div className="row">
+                                    <button type="button" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>Create vault</button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <label>
+                                    Import mode
+                                    <select value={importMode} onChange={(event) => setImportMode(event.target.value as "replace" | "merge")}>
+                                        <option value="replace">Replace (recommended for first launch)</option>
+                                        <option value="merge">Merge</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Vault file
+                                    <input
+                                        ref={importFileInputRef}
+                                        type="file"
+                                        accept=".json,.enc.json,application/json"
+                                        onChange={(event) => void selectImportFile(event)}
+                                    />
+                                </label>
+                                {importFileName ? <p className="muted">Selected file: {importFileName}</p> : null}
+                                <label>
+                                    Master password for imported vault
+                                    <input
+                                        type="password"
+                                        value={importPassword}
+                                        onChange={(event) => setImportPassword(event.target.value)}
+                                        placeholder="Enter imported vault password"
+                                    />
+                                </label>
+                                <div className="row">
+                                    <button type="button" disabled={busy || !importFile || importPassword.trim().length === 0} onClick={() => void importExistingVault()}>Import vault</button>
+                                </div>
+                            </>
+                        )}
+                    </>
+                ) : status.locked ? (
                     <>
                         <label>
                             Master password
@@ -460,12 +655,7 @@ export function Popup() {
                         </label>
                         <p className="muted">Password strength: {passwordStrength}</p>
                         <div className="row">
-                            {!status.hasVault ? (
-                                <button type="button" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>Create vault</button>
-                            ) : null}
-                            {status.hasVault && status.locked ? (
-                                <button type="button" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
-                            ) : null}
+                            <button type="button" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
                         </div>
                     </>
                 ) : (

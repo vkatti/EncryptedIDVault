@@ -657,7 +657,7 @@ export function Popup() {
                     display: grid;
                     gap: 10px;
                     justify-items: center;
-                    transform: translateY(16px);
+                    transform: translateY(30px);
                 }
                 .unlock-button {
                     display: inline-flex;
@@ -667,6 +667,7 @@ export function Popup() {
                     height: 36px;
                     justify-content: center;
                     padding: 0;
+                    transform: translateY(8px);
                 }
                 .entry-pill-grid {
                     display: flex;

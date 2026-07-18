@@ -304,9 +304,10 @@ export function Popup() {
         }
 
         setBusy(true);
+        const importMasterPassword = importPassword;
         const response = await importVaultMessage({
             file: importFile,
-            masterPassword: importPassword,
+            masterPassword: importMasterPassword,
             mode: importMode
         });
 
@@ -317,8 +318,16 @@ export function Popup() {
             return;
         }
 
+        const unlockResponse = await sendMessage("vault/unlock", { masterPassword: importMasterPassword });
+        if (!unlockResponse.ok) {
+            setError(unlockResponse.error ?? "Imported vault, but failed to unlock");
+            setSummary(null);
+            setBusy(false);
+            return;
+        }
+
         setError(null);
-        setSummary(`Imported ${response.entryCount ?? 0} entries`);
+        setSummary(`Imported ${response.entryCount ?? 0} entries and unlocked vault`);
         setImportPassword("");
         setImportFile(null);
         setImportFileName(null);

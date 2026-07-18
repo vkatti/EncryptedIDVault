@@ -312,6 +312,10 @@ export function OptionsPage() {
         });
 
         if (!response.ok || !response.entries) {
+            if (response.error === "ERR_VAULT_LOCKED") {
+                setEntries([]);
+                return;
+            }
             setError(response.error ?? "Unable to list entries");
             return;
         }
@@ -339,9 +343,16 @@ export function OptionsPage() {
         }
 
         setError(null);
-        setSummary(`${action} completed`);
+        setSummary(action === "vault/lock" ? "Vault locked" : `${action} completed`);
         setMasterPassword("");
         await refreshStatus();
+
+        if (action === "vault/lock") {
+            setEntries([]);
+            setBusy(false);
+            return;
+        }
+
         await loadEntries();
         setBusy(false);
     }, [masterPassword, refreshStatus, loadEntries]);

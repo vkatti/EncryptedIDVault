@@ -5,6 +5,7 @@ import { createMessageEnvelope } from "@encrypted-id-vault/security";
 import { getRememberedSelectedEntryId, insertEntryById } from "./insertionEngine";
 import { getCommandTriggerSource, getContextMenuTriggerSource } from "./triggerSource";
 import { handleRuntimeMessage } from "./runtimeMessageHandler";
+import { createBillingLifecycle } from "./billingLifecycle";
 import { createVaultLifecycle } from "./vaultLifecycle";
 
 type ExtensionRuntimeState = {
@@ -28,6 +29,7 @@ const runtimeState: ExtensionRuntimeState = {
 };
 
 const vaultLifecycle = createVaultLifecycle();
+const billingLifecycle = createBillingLifecycle();
 const AUTO_LOCK_ALARM_NAME = "vault-auto-lock";
 
 const COMMAND_IDS = {
@@ -134,7 +136,7 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
     void (async () => {
-        const response = await handleRuntimeMessage(message, runtimeState, createStatusMessage, vaultLifecycle, new Date().toISOString());
+        const response = await handleRuntimeMessage(message, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle, new Date().toISOString());
 
         if (response.ok && "locked" in response) {
             if (response.locked) {
@@ -211,4 +213,5 @@ chrome.contextMenus.onClicked.addListener((info) => {
 
 void loadInstalledAt();
 void loadVaultStatus();
+void billingLifecycle.initialize();
 clearAutoLockAlarm();

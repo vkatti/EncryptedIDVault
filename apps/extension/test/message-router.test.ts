@@ -4,6 +4,7 @@ import test from "node:test";
 import type { BackgroundMessage, VaultGetStatusMessage } from "@encrypted-id-vault/shared";
 
 import { routeBackgroundMessage, type RuntimeStateSnapshot } from "../src/background/messageRouter";
+import type { BillingLifecycle } from "../src/background/billingLifecycle";
 import type { VaultLifecycle } from "../src/background/vaultLifecycle";
 
 function createRuntimeState(): RuntimeStateSnapshot {
@@ -137,9 +138,58 @@ function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecyc
     };
 }
 
+function createBillingLifecycle(overrides?: Partial<BillingLifecycle>): BillingLifecycle {
+    return {
+        async initialize() {
+            return undefined;
+        },
+        getSnapshot() {
+            return {
+                accountId: "acct_123",
+                tier: "free",
+                state: "active",
+                expiresAt: null,
+                checkedAt: "2026-07-16T00:00:00.000Z",
+                source: "cache",
+                syncProvider: null,
+                syncEnabled: false
+            };
+        },
+        async linkAccount() {
+            return { ok: true, value: { accountId: "acct_123" } };
+        },
+        async startCheckout() {
+            return { ok: true, value: { checkoutUrl: "https://billing.example.test/checkout" } };
+        },
+        async getEntitlement() {
+            return {
+                ok: true,
+                value: {
+                    accountId: "acct_123",
+                    tier: "pro",
+                    state: "active",
+                    expiresAt: null,
+                    checkedAt: "2026-07-16T00:00:00.000Z",
+                    source: "network",
+                    syncProvider: "drive",
+                    syncEnabled: true
+                }
+            };
+        },
+        async setSyncProvider(provider) {
+            return { ok: true, value: { provider } };
+        },
+        async requestSync(action) {
+            return { ok: true, value: { action, provider: "drive" } };
+        },
+        ...overrides
+    };
+}
+
 test("routeBackgroundMessage returns status payload for vault/getStatus", async () => {
     const runtimeState = createRuntimeState();
     const vaultLifecycle = createVaultLifecycle();
+    const billingLifecycle = createBillingLifecycle();
     const message = {
         id: "message-1",
         type: "vault/getStatus",
@@ -148,7 +198,7 @@ test("routeBackgroundMessage returns status payload for vault/getStatus", async 
         payload: {}
     } satisfies BackgroundMessage;
 
-    const result = await routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle);
+    const result = await routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
 
     assert.equal(result.ok, true);
     if ("state" in result) {
@@ -163,6 +213,7 @@ test("routeBackgroundMessage returns status payload for vault/getStatus", async 
 test("routeBackgroundMessage mutates lock state for vault/create, vault/unlock and vault/lock", async () => {
     const runtimeState = createRuntimeState();
     const vaultLifecycle = createVaultLifecycle();
+    const billingLifecycle = createBillingLifecycle();
 
     const createMessage = {
         id: "message-0",
@@ -172,7 +223,7 @@ test("routeBackgroundMessage mutates lock state for vault/create, vault/unlock a
         payload: { masterPassword: "demo-password" }
     } satisfies BackgroundMessage;
 
-    const createResult = await routeBackgroundMessage(createMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const createResult = await routeBackgroundMessage(createMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
 
     assert.equal(createResult.ok, true);
     assert.equal(runtimeState.hasVault, true);
@@ -186,7 +237,7 @@ test("routeBackgroundMessage mutates lock state for vault/create, vault/unlock a
         payload: { masterPassword: "demo-password" }
     } satisfies BackgroundMessage;
 
-    const unlockResult = await routeBackgroundMessage(unlockMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const unlockResult = await routeBackgroundMessage(unlockMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
 
     assert.equal(unlockResult.ok, true);
     assert.equal(runtimeState.locked, false);
@@ -199,7 +250,7 @@ test("routeBackgroundMessage mutates lock state for vault/create, vault/unlock a
         payload: { reason: "manual" }
     } satisfies BackgroundMessage;
 
-    const lockResult = await routeBackgroundMessage(lockMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const lockResult = await routeBackgroundMessage(lockMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
 
     assert.equal(lockResult.ok, true);
     assert.equal(runtimeState.locked, true);
@@ -208,6 +259,7 @@ test("routeBackgroundMessage mutates lock state for vault/create, vault/unlock a
 test("routeBackgroundMessage routes vault/export and vault/import", async () => {
     const runtimeState = createRuntimeState();
     const vaultLifecycle = createVaultLifecycle();
+    const billingLifecycle = createBillingLifecycle();
 
     const exportMessage = {
         id: "message-export",
@@ -217,7 +269,7 @@ test("routeBackgroundMessage routes vault/export and vault/import", async () => 
         payload: {}
     } satisfies BackgroundMessage;
 
-    const exportResult = await routeBackgroundMessage(exportMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const exportResult = await routeBackgroundMessage(exportMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
     assert.equal(exportResult.ok, true);
     let exportedFile: Extract<typeof exportResult, { ok: true; file: unknown }>["file"] | null = null;
     if ("file" in exportResult) {
@@ -243,7 +295,7 @@ test("routeBackgroundMessage routes vault/export and vault/import", async () => 
         }
     } satisfies BackgroundMessage;
 
-    const importResult = await routeBackgroundMessage(importMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const importResult = await routeBackgroundMessage(importMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
     assert.equal(importResult.ok, true);
     if ("mode" in importResult) {
         assert.equal(importResult.mode, "replace");
@@ -257,6 +309,7 @@ test("routeBackgroundMessage routes vault/export and vault/import", async () => 
 test("routeBackgroundMessage routes entries/list responses", async () => {
     const runtimeState = createRuntimeState();
     const vaultLifecycle = createVaultLifecycle();
+    const billingLifecycle = createBillingLifecycle();
     const message = {
         id: "message-4",
         type: "entries/list",
@@ -265,7 +318,7 @@ test("routeBackgroundMessage routes entries/list responses", async () => {
         payload: {}
     } satisfies BackgroundMessage;
 
-    const result = await routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle);
+    const result = await routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
 
     assert.equal(result.ok, true);
     if ("entries" in result) {
@@ -279,6 +332,7 @@ test("routeBackgroundMessage routes entries/list responses", async () => {
 test("routeBackgroundMessage routes entries/create and entries/update", async () => {
     const runtimeState = createRuntimeState();
     const vaultLifecycle = createVaultLifecycle();
+    const billingLifecycle = createBillingLifecycle();
 
     const createMessage = {
         id: "message-5",
@@ -292,7 +346,7 @@ test("routeBackgroundMessage routes entries/create and entries/update", async ()
         }
     } satisfies BackgroundMessage;
 
-    const createResult = await routeBackgroundMessage(createMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const createResult = await routeBackgroundMessage(createMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
     assert.equal(createResult.ok, true);
     if ("entry" in createResult) {
         assert.equal(createResult.entry.label, "Email");
@@ -312,7 +366,7 @@ test("routeBackgroundMessage routes entries/create and entries/update", async ()
         }
     } satisfies BackgroundMessage;
 
-    const updateResult = await routeBackgroundMessage(updateMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const updateResult = await routeBackgroundMessage(updateMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
     assert.equal(updateResult.ok, true);
     if ("entry" in updateResult) {
         assert.equal(updateResult.entry.label, "Work Email");
@@ -326,6 +380,7 @@ test("routeBackgroundMessage routes entries/create and entries/update", async ()
 test("routeBackgroundMessage routes entries/delete", async () => {
     const runtimeState = createRuntimeState();
     const vaultLifecycle = createVaultLifecycle();
+    const billingLifecycle = createBillingLifecycle();
 
     const deleteMessage = {
         id: "message-7",
@@ -337,7 +392,7 @@ test("routeBackgroundMessage routes entries/delete", async () => {
         }
     } satisfies BackgroundMessage;
 
-    const deleteResult = await routeBackgroundMessage(deleteMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const deleteResult = await routeBackgroundMessage(deleteMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
     assert.equal(deleteResult.ok, true);
     if ("deletedEntryId" in deleteResult) {
         assert.equal(deleteResult.deletedEntryId, "entry-1");
@@ -350,6 +405,7 @@ test("routeBackgroundMessage routes entries/delete", async () => {
 test("routeBackgroundMessage routes entries/reorder", async () => {
     const runtimeState = createRuntimeState();
     const vaultLifecycle = createVaultLifecycle();
+    const billingLifecycle = createBillingLifecycle();
 
     const reorderMessage = {
         id: "message-8",
@@ -362,7 +418,7 @@ test("routeBackgroundMessage routes entries/reorder", async () => {
         }
     } satisfies BackgroundMessage;
 
-    const reorderResult = await routeBackgroundMessage(reorderMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    const reorderResult = await routeBackgroundMessage(reorderMessage, runtimeState, createStatusMessage, vaultLifecycle, billingLifecycle);
     assert.equal(reorderResult.ok, true);
     if ("entry" in reorderResult) {
         assert.equal(reorderResult.entry.id, "entry-1");
@@ -370,4 +426,76 @@ test("routeBackgroundMessage routes entries/reorder", async () => {
     }
 
     assert.fail("Expected reorder entry response");
+});
+
+test("routeBackgroundMessage routes billing and sync operations", async () => {
+    const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
+    const billingLifecycle = createBillingLifecycle();
+
+    const linkResult = await routeBackgroundMessage(
+        {
+            id: "message-b1",
+            type: "billing/linkAccount",
+            source: "popup",
+            target: "background",
+            payload: { email: "phase5@example.com" }
+        },
+        runtimeState,
+        createStatusMessage,
+        vaultLifecycle,
+        billingLifecycle
+    );
+
+    assert.equal(linkResult.ok, true);
+    if (linkResult.ok && "accountId" in linkResult) {
+        assert.equal(linkResult.accountId, "acct_123");
+    } else {
+        assert.fail("Expected link account response");
+    }
+
+    const entitlementResult = await routeBackgroundMessage(
+        {
+            id: "message-b2",
+            type: "billing/getEntitlement",
+            source: "popup",
+            target: "background",
+            payload: { forceRefresh: true }
+        },
+        runtimeState,
+        createStatusMessage,
+        vaultLifecycle,
+        billingLifecycle
+    );
+
+    assert.equal(entitlementResult.ok, true);
+    if (entitlementResult.ok && "entitlement" in entitlementResult) {
+        assert.equal(entitlementResult.entitlement.tier, "pro");
+        assert.equal(entitlementResult.entitlement.syncEnabled, true);
+    } else {
+        assert.fail("Expected entitlement response");
+    }
+
+    const syncResult = await routeBackgroundMessage(
+        {
+            id: "message-b3",
+            type: "sync/request",
+            source: "popup",
+            target: "background",
+            payload: { action: "push" }
+        },
+        runtimeState,
+        createStatusMessage,
+        vaultLifecycle,
+        billingLifecycle
+    );
+
+    assert.equal(syncResult.ok, true);
+    if (syncResult.ok && "syncProvider" in syncResult) {
+        assert.equal(syncResult.syncProvider, "drive");
+        assert.equal(syncResult.syncAction, "push");
+        return;
+    }
+
+    assert.fail("Expected sync response");
 });

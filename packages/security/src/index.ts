@@ -1,4 +1,7 @@
 import type {
+    BillingGetEntitlementMessage,
+    BillingLinkAccountMessage,
+    BillingStartCheckoutMessage,
     CreateEntryPayload,
     ErrorCode,
     ListEntriesPayload,
@@ -20,7 +23,9 @@ import type {
     VaultImportMessage,
     VaultLockMessage,
     VaultUpdatePreferencesMessage,
-    VaultUnlockMessage
+    VaultUnlockMessage,
+    SyncSetProviderMessage,
+    SyncRequestMessage
 } from "@encrypted-id-vault/shared";
 
 import { ERROR_CODES } from "@encrypted-id-vault/shared";
@@ -37,6 +42,11 @@ const ENTRY_DELETE_KEYS = ["entryId"] as const;
 const ENTRY_REORDER_KEYS = ["entryId", "targetIndex"] as const;
 const ENTRY_INSERT_KEYS = ["entryId", "fallbackToClipboard"] as const;
 const INSERT_TARGET_KEYS = ["entryId", "value", "domainAllowlist", "fallbackToClipboard", "frameId"] as const;
+const BILLING_LINK_ACCOUNT_KEYS = ["email"] as const;
+const BILLING_START_CHECKOUT_KEYS = ["plan"] as const;
+const BILLING_GET_ENTITLEMENT_KEYS = ["forceRefresh"] as const;
+const SYNC_SET_PROVIDER_KEYS = ["provider"] as const;
+const SYNC_REQUEST_KEYS = ["action"] as const;
 
 type RoutedBackgroundMessage =
     | VaultGetStatusMessage
@@ -51,7 +61,12 @@ type RoutedBackgroundMessage =
     | EntriesUpdateMessage
     | EntriesDeleteMessage
     | EntriesReorderMessage
-    | EntriesInsertMessage;
+    | EntriesInsertMessage
+    | BillingLinkAccountMessage
+    | BillingStartCheckoutMessage
+    | BillingGetEntitlementMessage
+    | SyncSetProviderMessage
+    | SyncRequestMessage;
 
 function isVaultExportFile(value: unknown): value is VaultExportFile {
     if (!isRecord(value)) {
@@ -349,6 +364,56 @@ export function isEntriesInsertMessage(value: unknown): value is EntriesInsertMe
     return isBackgroundRoutedEnvelope(value) && value.type === "entries/insert" && isInsertEntryPayload(value.payload);
 }
 
+export function isBillingLinkAccountMessage(value: unknown): value is BillingLinkAccountMessage {
+    return (
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "billing/linkAccount" &&
+        isRecord(value.payload) &&
+        hasOnlyKeys(value.payload, BILLING_LINK_ACCOUNT_KEYS) &&
+        isNonEmptyString(value.payload.email)
+    );
+}
+
+export function isBillingStartCheckoutMessage(value: unknown): value is BillingStartCheckoutMessage {
+    return (
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "billing/startCheckout" &&
+        isRecord(value.payload) &&
+        hasOnlyKeys(value.payload, BILLING_START_CHECKOUT_KEYS) &&
+        (value.payload.plan === "pro-monthly" || value.payload.plan === "pro-yearly" || value.payload.plan === "lifetime")
+    );
+}
+
+export function isBillingGetEntitlementMessage(value: unknown): value is BillingGetEntitlementMessage {
+    return (
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "billing/getEntitlement" &&
+        isRecord(value.payload) &&
+        Object.keys(value.payload).every((key) => (BILLING_GET_ENTITLEMENT_KEYS as readonly string[]).includes(key)) &&
+        isOptionalBoolean(value.payload.forceRefresh)
+    );
+}
+
+export function isSyncSetProviderMessage(value: unknown): value is SyncSetProviderMessage {
+    return (
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "sync/setProvider" &&
+        isRecord(value.payload) &&
+        hasOnlyKeys(value.payload, SYNC_SET_PROVIDER_KEYS) &&
+        (value.payload.provider === "drive" || value.payload.provider === "dropbox" || value.payload.provider === null)
+    );
+}
+
+export function isSyncRequestMessage(value: unknown): value is SyncRequestMessage {
+    return (
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "sync/request" &&
+        isRecord(value.payload) &&
+        hasOnlyKeys(value.payload, SYNC_REQUEST_KEYS) &&
+        (value.payload.action === "push" || value.payload.action === "pull")
+    );
+}
+
 export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMessage {
     return (
         isVaultGetStatusMessage(value) ||
@@ -363,7 +428,12 @@ export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMe
         isEntriesUpdateMessage(value) ||
         isEntriesDeleteMessage(value) ||
         isEntriesReorderMessage(value) ||
-        isEntriesInsertMessage(value)
+        isEntriesInsertMessage(value) ||
+        isBillingLinkAccountMessage(value) ||
+        isBillingStartCheckoutMessage(value) ||
+        isBillingGetEntitlementMessage(value) ||
+        isSyncSetProviderMessage(value) ||
+        isSyncRequestMessage(value)
     );
 }
 

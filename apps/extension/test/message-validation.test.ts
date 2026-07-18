@@ -63,6 +63,42 @@ test("isBackgroundMessage rejects sync/connectProvider at the background boundar
     assert.equal(isBackgroundMessage(message), false);
 });
 
+test("isBackgroundMessage accepts billing/linkAccount with valid email", () => {
+    const message = {
+        id: "msg-5b",
+        type: "billing/linkAccount",
+        source: "popup",
+        target: "background",
+        payload: { email: "phase5@example.com" }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage accepts billing/startCheckout with supported plan", () => {
+    const message = {
+        id: "msg-5c",
+        type: "billing/startCheckout",
+        source: "popup",
+        target: "background",
+        payload: { plan: "pro-yearly" }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage accepts sync/setProvider for disconnect", () => {
+    const message = {
+        id: "msg-5d",
+        type: "sync/setProvider",
+        source: "popup",
+        target: "background",
+        payload: { provider: null }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
 test("isBackgroundMessage rejects extra payload keys", () => {
     const message = {
         id: "msg-6",

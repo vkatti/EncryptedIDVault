@@ -1,7 +1,7 @@
 import React from "react";
 
 import { createMessageEnvelope } from "@encrypted-id-vault/security";
-import type { VaultEntry, VaultExportFile, VaultPreferences } from "@encrypted-id-vault/shared";
+import type { BillingPlan, VaultEntry, VaultExportFile, VaultPreferences } from "@encrypted-id-vault/shared";
 
 type PopupStatus = {
     installedAt: string | null;
@@ -59,6 +59,48 @@ type VaultImportResponse = {
     ok: boolean;
     mode?: "replace" | "merge";
     entryCount?: number;
+    error?: string;
+};
+
+type BillingEntitlement = {
+    accountId: string | null;
+    tier: "free" | "pro" | "lifetime";
+    state: "active" | "grace" | "expired" | "unknown";
+    expiresAt: string | null;
+    checkedAt: string | null;
+    source: "network" | "cache" | "default";
+    syncProvider: "drive" | "dropbox" | null;
+    syncEnabled: boolean;
+};
+
+type BillingEntitlementResponse = {
+    ok: boolean;
+    entitlement?: BillingEntitlement;
+    error?: string;
+};
+
+type BillingLinkResponse = {
+    ok: boolean;
+    accountId?: string;
+    error?: string;
+};
+
+type BillingCheckoutResponse = {
+    ok: boolean;
+    checkoutUrl?: string;
+    error?: string;
+};
+
+type SyncProviderResponse = {
+    ok: boolean;
+    provider?: "drive" | "dropbox" | null;
+    error?: string;
+};
+
+type SyncRequestResponse = {
+    ok: boolean;
+    syncAction?: "push" | "pull";
+    syncProvider?: "drive" | "dropbox";
     error?: string;
 };
 
@@ -243,6 +285,76 @@ async function importVaultMessage(payload: {
     )) as VaultImportResponse;
 }
 
+async function getEntitlementMessage(forceRefresh = false): Promise<BillingEntitlementResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "billing/getEntitlement",
+            source: "popup",
+            target: "background",
+            payload: {
+                forceRefresh
+            }
+        })
+    )) as BillingEntitlementResponse;
+}
+
+async function linkAccountMessage(email: string): Promise<BillingLinkResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "billing/linkAccount",
+            source: "popup",
+            target: "background",
+            payload: {
+                email
+            }
+        })
+    )) as BillingLinkResponse;
+}
+
+async function startCheckoutMessage(plan: BillingPlan): Promise<BillingCheckoutResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "billing/startCheckout",
+            source: "popup",
+            target: "background",
+            payload: {
+                plan
+            }
+        })
+    )) as BillingCheckoutResponse;
+}
+
+async function setSyncProviderMessage(provider: "drive" | "dropbox" | null): Promise<SyncProviderResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "sync/setProvider",
+            source: "popup",
+            target: "background",
+            payload: {
+                provider
+            }
+        })
+    )) as SyncProviderResponse;
+}
+
+async function requestSyncMessage(action: "push" | "pull"): Promise<SyncRequestResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "sync/request",
+            source: "popup",
+            target: "background",
+            payload: {
+                action
+            }
+        })
+    )) as SyncRequestResponse;
+}
+
 export function isVaultExportFile(value: unknown): value is VaultExportFile {
     if (!value || typeof value !== "object") {
         return false;
@@ -316,6 +428,11 @@ export function Popup() {
     const [importFileName, setImportFileName] = React.useState<string | null>(null);
     const [lastImportSummary, setLastImportSummary] = React.useState<string | null>(null);
     const [lastExportSummary, setLastExportSummary] = React.useState<string | null>(null);
+    const [entitlement, setEntitlement] = React.useState<BillingEntitlement | null>(null);
+    const [billingEmail, setBillingEmail] = React.useState("");
+    const [billingPlan, setBillingPlan] = React.useState<BillingPlan>("pro-monthly");
+    const [syncProvider, setSyncProvider] = React.useState<"drive" | "dropbox" | null>(null);
+    const [billingNotice, setBillingNotice] = React.useState<string | null>(null);
     const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
     const passwordStrength = getPasswordStrength(masterPassword);
@@ -344,6 +461,23 @@ export function Popup() {
             setPreferences(status.preferences);
         }
     }, [status.preferences]);
+
+    const refreshEntitlement = React.useCallback(async (forceRefresh = false) => {
+        const response = await getEntitlementMessage(forceRefresh);
+
+        if (!response.ok || !response.entitlement) {
+            setBillingNotice(response.error ?? "Unable to load entitlement status");
+            return;
+        }
+
+        setEntitlement(response.entitlement);
+        setSyncProvider(response.entitlement.syncProvider);
+        setBillingNotice(null);
+    }, []);
+
+    React.useEffect(() => {
+        void refreshEntitlement(false);
+    }, [refreshEntitlement]);
 
     const runAction = React.useCallback(
         async (action: Exclude<Action, "vault/getStatus">) => {
@@ -614,12 +748,123 @@ export function Popup() {
         setBusy(false);
     }, [importFile, importMode, importPassword, loadEntries, refreshStatus]);
 
+    const linkBillingAccount = React.useCallback(async () => {
+        if (billingEmail.trim().length === 0) {
+            setError("Enter an account email to link billing");
+            return;
+        }
+
+        setBusy(true);
+        const response = await linkAccountMessage(billingEmail.trim());
+
+        if (!response.ok) {
+            setError(response.error ?? "Unable to link account");
+            setBusy(false);
+            return;
+        }
+
+        setError(null);
+        setBillingNotice(`Linked account ${response.accountId}`);
+        await refreshEntitlement(true);
+        setBusy(false);
+    }, [billingEmail, refreshEntitlement]);
+
+    const startCheckout = React.useCallback(async () => {
+        setBusy(true);
+        const response = await startCheckoutMessage(billingPlan);
+
+        if (!response.ok || !response.checkoutUrl) {
+            setError(response.error ?? "Unable to start checkout");
+            setBusy(false);
+            return;
+        }
+
+        setError(null);
+        setBillingNotice(`Checkout started: ${response.checkoutUrl}`);
+        await refreshEntitlement(true);
+        setBusy(false);
+    }, [billingPlan, refreshEntitlement]);
+
+    const saveSyncProvider = React.useCallback(async () => {
+        setBusy(true);
+        const response = await setSyncProviderMessage(syncProvider);
+
+        if (!response.ok) {
+            setError(response.error ?? "Unable to update sync provider");
+            setBusy(false);
+            return;
+        }
+
+        setError(null);
+        setBillingNotice(`Sync provider set to ${response.provider ?? "none"}`);
+        await refreshEntitlement(false);
+        setBusy(false);
+    }, [refreshEntitlement, syncProvider]);
+
+    const requestSync = React.useCallback(async (action: "push" | "pull") => {
+        setBusy(true);
+        const response = await requestSyncMessage(action);
+
+        if (!response.ok) {
+            setError(response.error ?? "Sync request failed");
+            setBusy(false);
+            return;
+        }
+
+        setError(null);
+        setBillingNotice(`Sync ${response.syncAction} requested via ${response.syncProvider}`);
+        setBusy(false);
+    }, []);
+
     return (
         <main>
             <h1>Encrypted ID Vault</h1>
             <p>Installed: {status.installedAt ?? "loading..."}</p>
             <p>Vault: {status.hasVault ? "present" : "not created yet"}</p>
             <p>State: {status.locked ? "locked" : "unlocked"}</p>
+            <section>
+                <h2>Sync and upgrade</h2>
+                <p>Plan: {entitlement ? `${entitlement.tier} (${entitlement.state})` : "loading..."}</p>
+                <p>Sync access: {entitlement?.syncEnabled ? "enabled" : "requires Pro or Lifetime"}</p>
+                {entitlement?.accountId ? <p>Account: {entitlement.accountId}</p> : <p>Account: not linked</p>}
+                {entitlement?.checkedAt ? <p>Entitlement checked: {entitlement.checkedAt}</p> : null}
+
+                <label>
+                    Billing account email
+                    <input type="email" value={billingEmail} onChange={(event) => setBillingEmail(event.target.value)} placeholder="you@example.com" />
+                </label>
+                <button type="button" disabled={busy} onClick={() => void linkBillingAccount()}>
+                    Link billing account
+                </button>
+
+                <label>
+                    Upgrade plan
+                    <select value={billingPlan} onChange={(event) => setBillingPlan(event.target.value as BillingPlan)}>
+                        <option value="pro-monthly">Pro monthly</option>
+                        <option value="pro-yearly">Pro yearly</option>
+                        <option value="lifetime">Lifetime</option>
+                    </select>
+                </label>
+                <button type="button" disabled={busy} onClick={() => void startCheckout()}>
+                    Start checkout
+                </button>
+
+                <label>
+                    Sync provider
+                    <select value={syncProvider ?? "none"} onChange={(event) => setSyncProvider(event.target.value === "none" ? null : (event.target.value as "drive" | "dropbox"))}>
+                        <option value="none">None</option>
+                        <option value="drive">Google Drive</option>
+                        <option value="dropbox">Dropbox</option>
+                    </select>
+                </label>
+                <button type="button" disabled={busy} onClick={() => void saveSyncProvider()}>
+                    Save provider
+                </button>
+                <button type="button" disabled={busy} onClick={() => void requestSync("push")}>Sync push</button>
+                <button type="button" disabled={busy} onClick={() => void requestSync("pull")}>Sync pull</button>
+                <button type="button" disabled={busy} onClick={() => void refreshEntitlement(true)}>Refresh entitlement</button>
+                {billingNotice ? <p>{billingNotice}</p> : null}
+            </section>
             {status.lastMessageAt ? <p>Last message: {status.lastMessageAt}</p> : null}
             {status.lastUserTrigger ? <p>Last trigger: {status.lastUserTrigger}</p> : null}
             {status.lastUnlockedAt ? <p>Last unlocked: {status.lastUnlockedAt}</p> : null}

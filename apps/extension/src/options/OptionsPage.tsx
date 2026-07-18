@@ -1013,7 +1013,7 @@ export function OptionsPage() {
                     <p className="muted">Installed: {status.installedAt ?? "loading..."}</p>
                     <p className="muted">State: {status.locked ? "locked" : "unlocked"}</p>
                     <p className="muted">Last unlocked: {status.lastUnlockedAt ?? "never"}</p>
-                    {remainingLockSeconds !== null ? <p className="muted">Locking vault in {remainingLockSeconds} seconds</p> : null}
+                    {remainingLockSeconds !== null ? <p className="muted">Auto-locking vault in {remainingLockSeconds} seconds</p> : null}
 
                     <label className="stack" style={{ maxWidth: 360 }}>
                         Master password

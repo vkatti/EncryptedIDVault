@@ -605,6 +605,11 @@ export function Popup() {
                     font-size: 0.85rem;
                     font-weight: 700;
                 }
+                .lock-button-label {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
                 .locked-hero {
                     position: relative;
                     min-height: 210px;
@@ -769,9 +774,8 @@ export function Popup() {
                 </div>
                 {!status.locked ? (
                     <div className="row">
-                        <span className="status-pill">Unlocked</span>
                         <span className={remainingLockSeconds !== null ? "countdown" : "muted"}>
-                            {remainingLockSeconds !== null ? `Locking vault in ${remainingLockSeconds} seconds` : (status.hasVault ? "Vault ready" : "No vault yet")}
+                            {remainingLockSeconds !== null ? `Auto-locking vault in ${remainingLockSeconds} seconds` : (status.hasVault ? "Vault ready" : "No vault yet")}
                         </span>
                     </div>
                 ) : null}
@@ -882,7 +886,12 @@ export function Popup() {
                     </>
                 ) : (
                     <div className="row">
-                        <button type="button" className="warn" disabled={busy} onClick={() => void runAction("vault/lock")}>Lock vault</button>
+                        <button type="button" className="warn" disabled={busy} onClick={() => void runAction("vault/lock")}> 
+                            <span className="lock-button-label">
+                                <LockIcon title="Lock vault" />
+                                Lock vault
+                            </span>
+                        </button>
                     </div>
                 )}
             </section>

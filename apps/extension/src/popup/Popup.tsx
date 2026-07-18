@@ -91,7 +91,7 @@ function getPasswordStrength(password: string): "weak" | "medium" | "strong" {
     return "weak";
 }
 
-function getVaultExportErrorMessage(errorCode?: string): string {
+export function getVaultExportErrorMessage(errorCode?: string): string {
     if (errorCode === "ERR_VAULT_NOT_FOUND") {
         return "No vault exists yet. Create a vault before exporting.";
     }
@@ -99,7 +99,7 @@ function getVaultExportErrorMessage(errorCode?: string): string {
     return "Unable to export vault. Try again.";
 }
 
-function getVaultImportErrorMessage(errorCode?: string): string {
+export function getVaultImportErrorMessage(errorCode?: string): string {
     switch (errorCode) {
         case "ERR_UNLOCK_INVALID_PASSWORD":
             return "Import failed: the master password does not match the imported vault.";
@@ -243,7 +243,7 @@ async function importVaultMessage(payload: {
     )) as VaultImportResponse;
 }
 
-function isVaultExportFile(value: unknown): value is VaultExportFile {
+export function isVaultExportFile(value: unknown): value is VaultExportFile {
     if (!value || typeof value !== "object") {
         return false;
     }

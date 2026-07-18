@@ -980,7 +980,7 @@ export function OptionsPage() {
 
                     <label className="stack">
                         Import mode
-                        <select value={importMode} onChange={(event) => setImportMode(event.target.value as "replace" | "merge") }>
+                        <select value={importMode} onChange={(event) => setImportMode(event.target.value as "replace" | "merge")}>
                             <option value="merge">Merge with current vault</option>
                             <option value="replace">Replace current vault</option>
                         </select>

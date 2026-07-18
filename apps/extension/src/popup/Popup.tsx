@@ -624,11 +624,14 @@ export function Popup() {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    color: #9fb4c8;
-                    opacity: 0.35;
-                    transform: scale(8);
-                    filter: blur(6px);
+                    color: #6e8ea8;
+                    opacity: 0.42;
+                    filter: blur(3px);
                     pointer-events: none;
+                }
+                .locked-hero .lock-bg svg {
+                    width: 180px;
+                    height: 180px;
                 }
                 .locked-hero .unlock-input {
                     position: relative;
@@ -764,14 +767,15 @@ export function Popup() {
                         </div>
                     ) : null}
                 </div>
-                <div className="row">
-                    <span className="status-pill">{status.locked ? "Locked" : "Unlocked"}</span>
-                    <span className={remainingLockSeconds !== null ? "countdown" : "muted"}>
-                        {remainingLockSeconds !== null ? `Locking vault in ${remainingLockSeconds} seconds` : (status.hasVault ? "Vault ready" : "No vault yet")}
-                    </span>
-                </div>
+                {!status.locked ? (
+                    <div className="row">
+                        <span className="status-pill">Unlocked</span>
+                        <span className={remainingLockSeconds !== null ? "countdown" : "muted"}>
+                            {remainingLockSeconds !== null ? `Locking vault in ${remainingLockSeconds} seconds` : (status.hasVault ? "Vault ready" : "No vault yet")}
+                        </span>
+                    </div>
+                ) : null}
                 {!status.hasVault ? <p className="muted">First launch: create a new vault or import an existing encrypted vault file.</p> : null}
-                {status.hasVault && status.locked ? <p className="muted">Unlock to use your entries in this tab.</p> : null}
 
                 {!status.hasVault ? (
                     <>

@@ -209,6 +209,17 @@ function GearIcon(props: { title: string }) {
     );
 }
 
+function LockIcon(props: { title: string }) {
+    return (
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-label={props.title} role="img" focusable="false">
+            <path
+                d="M17 10h-1V8a4 4 0 10-8 0v2H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2v-8a2 2 0 00-2-2zm-7-2a2 2 0 114 0v2h-4V8zm2 8a1.5 1.5 0 011.5 1.5c0 .6-.35 1.12-.85 1.36V20h-1.3v-1.14a1.5 1.5 0 01.65-2.86z"
+                fill="currentColor"
+            />
+        </svg>
+    );
+}
+
 export function Popup() {
     const [status, setStatus] = React.useState<PopupStatus>({
         installedAt: null,
@@ -583,6 +594,43 @@ export function Popup() {
                     font-size: 0.85rem;
                     font-weight: 700;
                 }
+                .locked-hero {
+                    position: relative;
+                    min-height: 210px;
+                    border-radius: 12px;
+                    border: 1px solid #d7e2ee;
+                    background:
+                        radial-gradient(circle at 50% 30%, #f3f8fc 0%, #ffffff 70%),
+                        linear-gradient(180deg, #ffffff 0%, #f6fafc 100%);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    overflow: hidden;
+                }
+                .locked-hero .lock-bg {
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #9fb4c8;
+                    opacity: 0.35;
+                    transform: scale(8);
+                    filter: blur(6px);
+                    pointer-events: none;
+                }
+                .locked-hero .unlock-input {
+                    position: relative;
+                    z-index: 1;
+                    width: min(320px, calc(100% - 28px));
+                    border: 1px solid #8da6bb;
+                    background: #ffffffea;
+                    box-shadow: 0 10px 24px rgba(16, 42, 67, 0.12);
+                    border-radius: 12px;
+                    padding: 12px 14px;
+                    text-align: center;
+                    font-size: 1rem;
+                }
                 .entry-pill-grid {
                     display: flex;
                     gap: 8px;
@@ -679,12 +727,14 @@ export function Popup() {
             <section className="card">
                 <div className="row" style={{ justifyContent: "space-between" }}>
                     <h1>Encrypted ID Vault</h1>
-                    <div className="row">
-                        <button type="button" className="secondary" onClick={() => void refreshStatus()} disabled={busy}>Refresh</button>
-                        <button type="button" className="secondary icon-only" onClick={openOptions} title="Options" aria-label="Options">
-                            <GearIcon title="Options" />
-                        </button>
-                    </div>
+                    {status.hasVault && !status.locked ? (
+                        <div className="row">
+                            <button type="button" className="secondary" onClick={() => void refreshStatus()} disabled={busy}>Refresh</button>
+                            <button type="button" className="secondary icon-only" onClick={openOptions} title="Options" aria-label="Options">
+                                <GearIcon title="Options" />
+                            </button>
+                        </div>
+                    ) : null}
                 </div>
                 <div className="row">
                     <span className="status-pill">{status.locked ? "Locked" : "Unlocked"}</span>
@@ -766,18 +816,24 @@ export function Popup() {
                     </>
                 ) : status.locked ? (
                     <>
-                        <label>
-                            Master password
+                        <div className="locked-hero" aria-label="Locked vault unlock view">
+                            <div className="lock-bg" aria-hidden="true">
+                                <LockIcon title="Locked" />
+                            </div>
                             <input
+                                className="unlock-input"
                                 type="password"
                                 value={masterPassword}
                                 minLength={8}
                                 onChange={(event) => setMasterPassword(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" && !busy && masterPassword.trim().length > 0) {
+                                        event.preventDefault();
+                                        void runAction("vault/unlock");
+                                    }
+                                }}
                                 placeholder="Enter master password"
                             />
-                        </label>
-                        <div className="row">
-                            <button type="button" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
                         </div>
                     </>
                 ) : (

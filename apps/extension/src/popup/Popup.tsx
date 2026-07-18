@@ -232,6 +232,7 @@ export function Popup() {
     const [importFileName, setImportFileName] = React.useState<string | null>(null);
     const [nowMs, setNowMs] = React.useState(() => Date.now());
     const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
+    const autoLockTriggeredRef = React.useRef(false);
 
     const refreshStatus = React.useCallback(async () => {
         const response = await sendMessage("vault/getStatus", {});
@@ -440,6 +441,40 @@ export function Popup() {
     }, []);
 
     const remainingLockSeconds = getRemainingLockSeconds(status, nowMs);
+
+    React.useEffect(() => {
+        if (!status.hasVault || status.locked || remainingLockSeconds === null) {
+            autoLockTriggeredRef.current = false;
+            return;
+        }
+
+        if (remainingLockSeconds > 0) {
+            autoLockTriggeredRef.current = false;
+            return;
+        }
+
+        if (autoLockTriggeredRef.current) {
+            return;
+        }
+
+        autoLockTriggeredRef.current = true;
+        void (async () => {
+            setBusy(true);
+            const response = await sendMessage("vault/lock", { reason: "manual" });
+
+            if (!response.ok) {
+                setError(response.error ?? "Unable to auto-lock vault");
+                autoLockTriggeredRef.current = false;
+                setBusy(false);
+                return;
+            }
+
+            setError(null);
+            setSummary(null);
+            await refreshStatus();
+            setBusy(false);
+        })();
+    }, [refreshStatus, remainingLockSeconds, status.hasVault, status.locked]);
 
     return (
         <main className="popup-shell">

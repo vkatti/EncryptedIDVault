@@ -50,13 +50,25 @@ export async function rememberSelectedEntryId(entryId: string): Promise<void> {
 }
 
 async function sendInsertMessageToActiveTab(entry: VaultEntry, fallbackToClipboard?: boolean, frameId?: number, explicitTabId?: number): Promise<ContentScriptInsertResponse | null> {
-    const targetTabId = explicitTabId
-        ?? (await chrome.tabs.query({ active: true, windowType: "normal" }))[0]?.id
-        ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id
-        ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id
-        ?? (await chrome.tabs.query({ active: true }))[0]?.id;
+    const targetTabIds = new Set<number>();
 
-    if (!targetTabId) {
+    if (typeof explicitTabId === "number") {
+        targetTabIds.add(explicitTabId);
+    }
+
+    for (const queryOptions of [
+        { active: true, windowType: "normal" as const },
+        { active: true, currentWindow: true as const },
+        { active: true, lastFocusedWindow: true as const },
+        { active: true }
+    ]) {
+        const tabId = (await chrome.tabs.query(queryOptions))[0]?.id;
+        if (typeof tabId === "number") {
+            targetTabIds.add(tabId);
+        }
+    }
+
+    if (targetTabIds.size === 0) {
         return null;
     }
 
@@ -74,14 +86,21 @@ async function sendInsertMessageToActiveTab(entry: VaultEntry, fallbackToClipboa
         }
     });
 
-    try {
-        const response = (frameId === undefined
-            ? await chrome.tabs.sendMessage(targetTabId, message)
-            : await chrome.tabs.sendMessage(targetTabId, message, { frameId })) as ContentScriptInsertResponse | undefined;
-        return response ?? null;
-    } catch {
-        return null;
+    for (const targetTabId of targetTabIds) {
+        try {
+            const response = (frameId === undefined
+                ? await chrome.tabs.sendMessage(targetTabId, message)
+                : await chrome.tabs.sendMessage(targetTabId, message, { frameId })) as ContentScriptInsertResponse | undefined;
+
+            if (response) {
+                return response;
+            }
+        } catch {
+            // Try next candidate tab.
+        }
     }
+
+    return null;
 }
 
 export async function insertEntryById(params: {

@@ -51,6 +51,7 @@ export async function rememberSelectedEntryId(entryId: string): Promise<void> {
 
 async function sendInsertMessageToActiveTab(entry: VaultEntry, fallbackToClipboard?: boolean, frameId?: number, explicitTabId?: number): Promise<ContentScriptInsertResponse | null> {
     const targetTabId = explicitTabId
+        ?? (await chrome.tabs.query({ active: true, windowType: "normal" }))[0]?.id
         ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id
         ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id
         ?? (await chrome.tabs.query({ active: true }))[0]?.id;

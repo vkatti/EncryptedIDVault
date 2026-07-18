@@ -132,9 +132,10 @@ chrome.runtime.onStartup.addListener(() => {
     clearAutoLockAlarm();
 });
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     void (async () => {
-        const response = await handleRuntimeMessage(message, runtimeState, createStatusMessage, vaultLifecycle, new Date().toISOString());
+        const senderTabId = typeof sender.tab?.id === "number" ? sender.tab.id : undefined;
+        const response = await handleRuntimeMessage(message, runtimeState, createStatusMessage, vaultLifecycle, new Date().toISOString(), undefined, senderTabId);
 
         if (response.ok && "locked" in response) {
             if (response.locked) {

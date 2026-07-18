@@ -371,3 +371,33 @@ test("routeBackgroundMessage routes entries/reorder", async () => {
 
     assert.fail("Expected reorder entry response");
 });
+
+test("routeBackgroundMessage forwards requester tab id for entries/insert", async () => {
+    const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
+    const message = {
+        id: "message-9",
+        type: "entries/insert",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1"
+        }
+    } satisfies BackgroundMessage;
+
+    let capturedTabId: number | undefined;
+    const result = await routeBackgroundMessage(
+        message,
+        runtimeState,
+        createStatusMessage,
+        vaultLifecycle,
+        async (params) => {
+            capturedTabId = params.tabId;
+            return { ok: true, insertedEntryId: params.entryId, insertionMode: "insert" };
+        },
+        77
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(capturedTabId, 77);
+});

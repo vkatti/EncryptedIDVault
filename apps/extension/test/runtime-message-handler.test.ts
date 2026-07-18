@@ -225,3 +225,32 @@ test("handleRuntimeMessage routes valid entries/insert messages", async () => {
         assert.equal(result.insertionMode, "insert");
     }
 });
+
+test("handleRuntimeMessage forwards sender tab id to insert routing", async () => {
+    const runtimeState = createRuntimeState();
+    let capturedTabId: number | undefined;
+
+    const result = await handleRuntimeMessage(
+        {
+            id: "msg-5",
+            type: "entries/insert",
+            source: "popup",
+            target: "background",
+            payload: {
+                entryId: "entry-1"
+            }
+        },
+        runtimeState,
+        createStatusMessage,
+        createVaultLifecycle(),
+        "2026-07-16T00:06:00.000Z",
+        async (params) => {
+            capturedTabId = params.tabId;
+            return { ok: true, insertedEntryId: params.entryId, insertionMode: "insert" };
+        },
+        91
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(capturedTabId, 91);
+});

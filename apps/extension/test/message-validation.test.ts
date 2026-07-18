@@ -349,6 +349,21 @@ test("isBackgroundMessage accepts entries/insert with a fallback flag", () => {
     assert.equal(isBackgroundMessage(message), true);
 });
 
+test("isBackgroundMessage accepts entries/insert with tab id", () => {
+    const message = {
+        id: "msg-18b",
+        type: "entries/insert",
+        source: "popup",
+        target: "background",
+        payload: {
+            entryId: "entry-1",
+            tabId: 123
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
 test("isBackgroundMessage rejects entries/insert with unexpected payload keys", () => {
     const message = {
         id: "msg-19",

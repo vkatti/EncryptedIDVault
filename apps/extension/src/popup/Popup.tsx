@@ -191,7 +191,7 @@ async function insertEntryMessage(payload: { entryId: string; tabId?: number }):
 }
 
 async function getActiveTabId(): Promise<number | undefined> {
-    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const tabs = await chrome.tabs.query({ active: true, windowType: "normal" });
     const tabId = tabs[0]?.id;
     return typeof tabId === "number" ? tabId : undefined;
 }

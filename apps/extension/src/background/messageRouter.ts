@@ -91,7 +91,8 @@ export async function routeBackgroundMessage(
     runtimeState: RuntimeStateSnapshot,
     createStatusMessage: () => VaultGetStatusMessage,
     vaultLifecycle: VaultLifecycle,
-    insertEntry: typeof insertEntryById = insertEntryById
+    insertEntry: typeof insertEntryById = insertEntryById,
+    requesterTabId?: number
 ): Promise<BackgroundResponse> {
     switch (message.type) {
         case "vault/getStatus":
@@ -200,7 +201,7 @@ export async function routeBackgroundMessage(
             const result = await insertEntry({
                 entryId: message.payload.entryId,
                 fallbackToClipboard: message.payload.fallbackToClipboard,
-                tabId: message.payload.tabId,
+                tabId: message.payload.tabId ?? requesterTabId,
                 vaultLifecycle
             });
 

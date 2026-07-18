@@ -237,6 +237,23 @@ async function readImportFile(file: File): Promise<VaultExportFile> {
     return parsed;
 }
 
+function getRemainingLockSeconds(status: PopupStatus, nowMs: number): number | null {
+    if (!status.hasVault || status.locked) {
+        return null;
+    }
+
+    const autoLockMinutes = status.preferences?.autoLockMinutes ?? 1;
+    const anchorIso = status.lastMessageAt ?? status.lastUnlockedAt;
+    const anchorMs = anchorIso ? Date.parse(anchorIso) : Number.NaN;
+
+    if (!Number.isFinite(anchorMs)) {
+        return null;
+    }
+
+    const deadlineMs = anchorMs + (autoLockMinutes * 60 * 1000);
+    return Math.max(0, Math.floor((deadlineMs - nowMs) / 1000));
+}
+
 function Icon(props: { path: string; title: string }) {
     return (
         <svg viewBox="0 0 24 24" width="16" height="16" aria-label={props.title} role="img" focusable="false">
@@ -283,7 +300,10 @@ export function OptionsPage() {
     const [newEntry, setNewEntry] = React.useState<EntryFormState>(DEFAULT_ENTRY_FORM);
     const [editingEntryId, setEditingEntryId] = React.useState<string | null>(null);
     const [editingEntry, setEditingEntry] = React.useState<EntryFormState>(DEFAULT_ENTRY_FORM);
+    const [nowMs, setNowMs] = React.useState(() => Date.now());
     const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+    const remainingLockSeconds = getRemainingLockSeconds(status, nowMs);
 
     const refreshStatus = React.useCallback(async () => {
         const response = await sendMessage("vault/getStatus", {});
@@ -330,6 +350,16 @@ export function OptionsPage() {
     React.useEffect(() => {
         void loadEntries();
     }, [loadEntries]);
+
+    React.useEffect(() => {
+        const timer = window.setInterval(() => {
+            setNowMs(Date.now());
+        }, 1000);
+
+        return () => {
+            window.clearInterval(timer);
+        };
+    }, []);
 
     React.useEffect(() => {
         if (status.locked && activeTab !== "lifecycle") {
@@ -639,6 +669,19 @@ export function OptionsPage() {
                     margin: 8px 0 0;
                     color: rgba(255, 255, 255, 0.9);
                 }
+                .hero-countdown {
+                    margin-top: 10px;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border-radius: 999px;
+                    border: 1px solid rgba(255, 255, 255, 0.32);
+                    padding: 5px 10px;
+                    font-size: 0.84rem;
+                    font-weight: 700;
+                    background: rgba(255, 255, 255, 0.16);
+                    color: #fff;
+                }
                 .tabs {
                     display: flex;
                     gap: 8px;
@@ -794,6 +837,15 @@ export function OptionsPage() {
             <section className="hero">
                 <h1>Encrypted ID Vault Settings</h1>
                 <p>Cleaner controls, faster entry management, and a smoother first-run import path.</p>
+                {status.hasVault ? (
+                    <p className="hero-countdown">
+                        {status.locked
+                            ? "Vault locked"
+                            : (remainingLockSeconds !== null
+                                ? `Auto-lock in ${remainingLockSeconds}s`
+                                : "Vault unlocked")}
+                    </p>
+                ) : null}
             </section>
 
             <nav className="tabs">
@@ -961,6 +1013,7 @@ export function OptionsPage() {
                     <p className="muted">Installed: {status.installedAt ?? "loading..."}</p>
                     <p className="muted">State: {status.locked ? "locked" : "unlocked"}</p>
                     <p className="muted">Last unlocked: {status.lastUnlockedAt ?? "never"}</p>
+                    {remainingLockSeconds !== null ? <p className="muted">Locking vault in {remainingLockSeconds} seconds</p> : null}
 
                     <label className="stack" style={{ maxWidth: 360 }}>
                         Master password

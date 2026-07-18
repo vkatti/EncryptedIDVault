@@ -181,6 +181,23 @@ async function readImportFile(file: File): Promise<VaultExportFile> {
     return parsed;
 }
 
+function getRemainingLockSeconds(status: PopupStatus, nowMs: number): number | null {
+    if (!status.hasVault || status.locked) {
+        return null;
+    }
+
+    const autoLockMinutes = status.preferences?.autoLockMinutes ?? 1;
+    const anchorIso = status.lastMessageAt ?? status.lastUnlockedAt;
+    const anchorMs = anchorIso ? Date.parse(anchorIso) : Number.NaN;
+
+    if (!Number.isFinite(anchorMs)) {
+        return null;
+    }
+
+    const deadlineMs = anchorMs + (autoLockMinutes * 60 * 1000);
+    return Math.max(0, Math.floor((deadlineMs - nowMs) / 1000));
+}
+
 export function Popup() {
     const [status, setStatus] = React.useState<PopupStatus>({
         installedAt: null,
@@ -202,6 +219,7 @@ export function Popup() {
     const [importPassword, setImportPassword] = React.useState("");
     const [importFile, setImportFile] = React.useState<VaultExportFile | null>(null);
     const [importFileName, setImportFileName] = React.useState<string | null>(null);
+    const [nowMs, setNowMs] = React.useState(() => Date.now());
     const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
     const passwordStrength = getPasswordStrength(masterPassword);
 
@@ -270,6 +288,16 @@ export function Popup() {
     React.useEffect(() => {
         void loadEntries();
     }, [loadEntries]);
+
+    React.useEffect(() => {
+        const timer = window.setInterval(() => {
+            setNowMs(Date.now());
+        }, 1000);
+
+        return () => {
+            window.clearInterval(timer);
+        };
+    }, []);
 
     const selectImportFile = React.useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         const selected = event.target.files?.[0];
@@ -394,6 +422,7 @@ export function Popup() {
     }, []);
 
     const defaultModeLabel = status.preferences?.defaultInsertMode === "copy" ? "copy" : "insert";
+    const remainingLockSeconds = getRemainingLockSeconds(status, nowMs);
 
     return (
         <main className="popup-shell">
@@ -489,6 +518,11 @@ export function Popup() {
                     font-size: 0.75rem;
                     font-weight: 700;
                 }
+                .countdown {
+                    color: #9a3412;
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                }
                 .entry-pill-grid {
                     display: flex;
                     gap: 8px;
@@ -575,7 +609,9 @@ export function Popup() {
                 </div>
                 <div className="row">
                     <span className="status-pill">{status.locked ? "Locked" : "Unlocked"}</span>
-                    <span className="muted">{status.hasVault ? "Vault ready" : "No vault yet"}</span>
+                    <span className={remainingLockSeconds !== null ? "countdown" : "muted"}>
+                        {remainingLockSeconds !== null ? `Locking vault in ${remainingLockSeconds} seconds` : (status.hasVault ? "Vault ready" : "No vault yet")}
+                    </span>
                 </div>
                 {!status.hasVault ? <p className="muted">First launch: create a new vault or import an existing encrypted vault file.</p> : null}
                 {status.hasVault && status.locked ? <p className="muted">Unlock to use your entries in this tab.</p> : null}

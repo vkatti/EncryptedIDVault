@@ -18,7 +18,7 @@ export interface VaultRepository {
 
 export function createDefaultVaultPreferences(): VaultPreferences {
     return {
-        autoLockMinutes: 5,
+        autoLockMinutes: 1,
         defaultInsertMode: "insert",
         clipboardWarningEnabled: true,
         theme: "system",

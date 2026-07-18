@@ -27,7 +27,7 @@ test("vault lifecycle creates and persists an encrypted vault", async () => {
     const status = lifecycle.getStatus();
     assert.equal(status.hasVault, true);
     assert.equal(status.locked, false);
-    assert.equal(lifecycle.getAutoLockMinutes(), 5);
+    assert.equal(lifecycle.getAutoLockMinutes(), 1);
     assert.equal(status.lastUnlockedAt, "2026-07-16T10:00:00.000Z");
 });
 
@@ -84,7 +84,7 @@ test("vault lifecycle lock clears unlocked session state", async () => {
 
     await lifecycle.initialize();
     await lifecycle.createVault("correct horse battery staple");
-    assert.equal(lifecycle.getAutoLockMinutes(), 5);
+    assert.equal(lifecycle.getAutoLockMinutes(), 1);
 
     await lifecycle.lockVault();
     assert.equal(lifecycle.getAutoLockMinutes(), null);

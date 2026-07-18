@@ -65,7 +65,7 @@ type EntryFormState = {
 };
 
 const DEFAULT_PREFERENCES: VaultPreferences = {
-    autoLockMinutes: 5,
+    autoLockMinutes: 1,
     defaultInsertMode: "insert",
     clipboardWarningEnabled: true,
     theme: "system",

@@ -45,24 +45,6 @@ type VaultImportResponse = {
 
 type Action = "vault/getStatus" | "vault/create" | "vault/unlock" | "vault/lock";
 
-function getPasswordStrength(password: string): "weak" | "medium" | "strong" {
-    const hasUpper = /[A-Z]/.test(password);
-    const hasLower = /[a-z]/.test(password);
-    const hasDigit = /\d/.test(password);
-    const hasSymbol = /[^A-Za-z0-9]/.test(password);
-    const score = [hasUpper, hasLower, hasDigit, hasSymbol].filter(Boolean).length;
-
-    if (password.length >= 14 && score >= 3) {
-        return "strong";
-    }
-
-    if (password.length >= 10 && score >= 2) {
-        return "medium";
-    }
-
-    return "weak";
-}
-
 export function getVaultExportErrorMessage(errorCode?: string): string {
     if (errorCode === "ERR_VAULT_NOT_FOUND") {
         return "No vault exists yet. Create a vault before exporting.";
@@ -239,7 +221,6 @@ export function Popup() {
     const [importFileName, setImportFileName] = React.useState<string | null>(null);
     const [nowMs, setNowMs] = React.useState(() => Date.now());
     const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
-    const passwordStrength = getPasswordStrength(masterPassword);
 
     const refreshStatus = React.useCallback(async () => {
         const response = await sendMessage("vault/getStatus", {});
@@ -673,7 +654,6 @@ export function Popup() {
                                         placeholder="Enter master password"
                                     />
                                 </label>
-                                <p className="muted">Password strength: {passwordStrength}</p>
                                 <div className="row">
                                     <button type="button" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>Create vault</button>
                                 </div>
@@ -724,7 +704,6 @@ export function Popup() {
                                 placeholder="Enter master password"
                             />
                         </label>
-                        <p className="muted">Password strength: {passwordStrength}</p>
                         <div className="row">
                             <button type="button" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
                         </div>

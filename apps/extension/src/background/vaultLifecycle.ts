@@ -1,4 +1,4 @@
-import { createVaultEnvelope, openVaultEnvelope }                                                  from "@encrypted-id-vault/crypto";
+import { createVaultEnvelope, openVaultEnvelope } from "@encrypted-id-vault/crypto";
 import { VAULT_SCHEMA_VERSION, type VaultDocument, type VaultEntry, type VaultEnvelope, type VaultExportFile, type VaultPreferences } from "@encrypted-id-vault/shared";
 import { createVaultDocument, createVaultRepository, type VaultRecordStore, type VaultRepository } from "@encrypted-id-vault/vault";
 

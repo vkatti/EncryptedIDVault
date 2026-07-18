@@ -119,6 +119,25 @@ async function getActiveTabId(): Promise<number | undefined> {
     return typeof tabId === "number" ? tabId : undefined;
 }
 
+async function copyTextFromPopup(value: string): Promise<boolean> {
+    try {
+        await navigator.clipboard.writeText(value);
+        return true;
+    } catch {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        textarea.style.pointerEvents = "none";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        return copied;
+    }
+}
+
 export function isVaultExportFile(value: unknown): value is VaultExportFile {
     if (!value || typeof value !== "object") {
         return false;
@@ -215,8 +234,39 @@ export function Popup() {
     const triggerEntry = React.useCallback(async (entryId: string) => {
         setBusy(true);
 
-        const tabId = await getActiveTabId();
         const preferClipboard = status.preferences?.defaultInsertMode === "copy";
+        if (preferClipboard) {
+            const selectedEntry = entries.find((entry) => entry.id === entryId);
+
+            if (!selectedEntry) {
+                setError("Unable to find selected entry");
+                setSummary(null);
+                setBusy(false);
+                return;
+            }
+
+            if (!selectedEntry.copyModeAllowed) {
+                setError("Copy mode is disabled for this entry");
+                setSummary(null);
+                setBusy(false);
+                return;
+            }
+
+            const copied = await copyTextFromPopup(selectedEntry.value);
+            if (!copied) {
+                setError("Unable to copy entry value");
+                setSummary(null);
+                setBusy(false);
+                return;
+            }
+
+            setError(null);
+            setSummary("Copied entry value to clipboard");
+            setBusy(false);
+            return;
+        }
+
+        const tabId = await getActiveTabId();
         const response = await insertEntryMessage({ entryId, tabId, fallbackToClipboard: preferClipboard || undefined });
 
         if (!response.ok) {
@@ -230,7 +280,7 @@ export function Popup() {
         setSummary(response.insertionMode === "clipboard" ? "Copied entry value to clipboard" : "Inserted entry value");
         await refreshStatus();
         setBusy(false);
-    }, [refreshStatus, status.preferences?.defaultInsertMode]);
+    }, [entries, refreshStatus, status.preferences?.defaultInsertMode]);
 
     const openOptions = React.useCallback(() => {
         void chrome.runtime.openOptionsPage();

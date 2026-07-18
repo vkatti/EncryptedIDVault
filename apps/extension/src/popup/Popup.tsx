@@ -657,6 +657,7 @@ export function Popup() {
                     display: grid;
                     gap: 10px;
                     justify-items: center;
+                    transform: translateY(16px);
                 }
                 .unlock-button {
                     display: inline-flex;

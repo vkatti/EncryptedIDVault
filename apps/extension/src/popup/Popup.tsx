@@ -136,6 +136,24 @@ async function importVaultMessage(payload: {
     )) as VaultImportResponse;
 }
 
+async function updatePreferencesMessage(payload: {
+    autoLockMinutes?: number;
+    defaultInsertMode?: VaultPreferences["defaultInsertMode"];
+    clipboardWarningEnabled?: boolean;
+    theme?: VaultPreferences["theme"];
+    telemetryEnabled?: boolean;
+}): Promise<StatusResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "vault/updatePreferences",
+            source: "popup",
+            target: "background",
+            payload
+        })
+    )) as StatusResponse;
+}
+
 async function getActiveTabId(): Promise<number | undefined> {
     const tabs = await chrome.tabs.query({ active: true, windowType: "normal" });
     const tabId = tabs[0]?.id;
@@ -349,6 +367,14 @@ export function Popup() {
         const unlockResponse = await sendMessage("vault/unlock", { masterPassword: importMasterPassword });
         if (!unlockResponse.ok) {
             setError(unlockResponse.error ?? "Imported vault, but failed to unlock");
+            setSummary(null);
+            setBusy(false);
+            return;
+        }
+
+        const preferencesResponse = await updatePreferencesMessage({ autoLockMinutes: 1 });
+        if (!preferencesResponse.ok) {
+            setError(preferencesResponse.error ?? "Imported and unlocked vault, but failed to apply default lock timer");
             setSummary(null);
             setBusy(false);
             return;

@@ -153,6 +153,82 @@ test("isBackgroundMessage rejects vault/create with blank password", () => {
     assert.equal(isBackgroundMessage(message), false);
 });
 
+test("isBackgroundMessage accepts vault/export with empty payload", () => {
+    const message = {
+        id: "msg-10b",
+        type: "vault/export",
+        source: "popup",
+        target: "background",
+        payload: {}
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage accepts vault/import with a valid export file", () => {
+    const message = {
+        id: "msg-10c",
+        type: "vault/import",
+        source: "popup",
+        target: "background",
+        payload: {
+            file: {
+                formatVersion: 1,
+                exportedAt: "2026-07-18T00:00:00.000Z",
+                envelope: {
+                    schemaVersion: 1,
+                    vaultId: "vault-1",
+                    kdf: { name: "pbkdf2", salt: "salt", iterations: 10 },
+                    encryption: { algorithm: "AES-GCM", nonce: "nonce" },
+                    ciphertext: "ciphertext",
+                    integrity: { method: "hmac", value: "tag" },
+                    meta: {
+                        createdAt: "2026-07-18T00:00:00.000Z",
+                        updatedAt: "2026-07-18T00:00:00.000Z",
+                        syncProvider: null
+                    }
+                }
+            },
+            masterPassword: "correct horse battery staple",
+            mode: "merge"
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), true);
+});
+
+test("isBackgroundMessage rejects vault/import with invalid mode", () => {
+    const message = {
+        id: "msg-10d",
+        type: "vault/import",
+        source: "popup",
+        target: "background",
+        payload: {
+            file: {
+                formatVersion: 1,
+                exportedAt: "2026-07-18T00:00:00.000Z",
+                envelope: {
+                    schemaVersion: 1,
+                    vaultId: "vault-1",
+                    kdf: { name: "pbkdf2", salt: "salt", iterations: 10 },
+                    encryption: { algorithm: "AES-GCM", nonce: "nonce" },
+                    ciphertext: "ciphertext",
+                    integrity: { method: "hmac", value: "tag" },
+                    meta: {
+                        createdAt: "2026-07-18T00:00:00.000Z",
+                        updatedAt: "2026-07-18T00:00:00.000Z",
+                        syncProvider: null
+                    }
+                }
+            },
+            masterPassword: "correct horse battery staple",
+            mode: "append"
+        }
+    };
+
+    assert.equal(isBackgroundMessage(message), false);
+});
+
 test("isBackgroundMessage rejects vault/updatePreferences with an invalid field value", () => {
     const message = {
         id: "msg-11",

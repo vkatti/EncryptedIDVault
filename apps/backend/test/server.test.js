@@ -32,16 +32,6 @@ test("GET /health returns ok payload", async () => {
     });
 });
 
-test("POST /webhooks/stripe returns placeholder not implemented response", async () => {
-    await withServer(async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/webhooks/stripe`, { method: "POST" });
-        const body = await response.json();
-
-        assert.equal(response.status, 501);
-        assert.deepEqual(body, { ok: false, error: "webhook_not_implemented", provider: "stripe" });
-    });
-});
-
 test("unknown route returns not_found", async () => {
     await withServer(async (baseUrl) => {
         const response = await fetch(`${baseUrl}/missing`);

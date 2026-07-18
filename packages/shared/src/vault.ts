@@ -81,3 +81,9 @@ export interface VaultEnvelope {
     integrity: IntegrityParameters;
     meta: VaultMetadata;
 }
+
+export interface VaultExportFile {
+    formatVersion: 1;
+    exportedAt: string;
+    envelope: VaultEnvelope;
+}

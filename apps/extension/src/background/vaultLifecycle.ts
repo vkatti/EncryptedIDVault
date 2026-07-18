@@ -1,5 +1,5 @@
-import { createVaultEnvelope, openVaultEnvelope }                                                  from "@encrypted-id-vault/crypto";
-import type { VaultDocument, VaultEntry, VaultEnvelope, VaultPreferences }                         from "@encrypted-id-vault/shared";
+import { createVaultEnvelope, openVaultEnvelope } from "@encrypted-id-vault/crypto";
+import { VAULT_SCHEMA_VERSION, type VaultDocument, type VaultEntry, type VaultEnvelope, type VaultExportFile, type VaultPreferences } from "@encrypted-id-vault/shared";
 import { createVaultDocument, createVaultRepository, type VaultRecordStore, type VaultRepository } from "@encrypted-id-vault/vault";
 
 const VAULT_STORAGE_KEY = "vaultEnvelope";
@@ -9,7 +9,9 @@ export type VaultLifecycleError =
     | "ERR_VAULT_ALREADY_EXISTS"
     | "ERR_VAULT_NOT_FOUND"
     | "ERR_VAULT_LOCKED"
-    | "ERR_ENTRY_NOT_FOUND";
+    | "ERR_ENTRY_NOT_FOUND"
+    | "ERR_IMPORT_SCHEMA_UNSUPPORTED"
+    | "ERR_VAULT_CORRUPT";
 
 export type EntryCreateInput = {
     label: string;
@@ -94,6 +96,27 @@ export type VaultReorderEntryResult =
         error: "ERR_VAULT_LOCKED" | "ERR_ENTRY_NOT_FOUND";
     };
 
+export type VaultExportResult =
+    | {
+        ok: true;
+        file: VaultExportFile;
+    }
+    | {
+        ok: false;
+        error: "ERR_VAULT_NOT_FOUND";
+    };
+
+export type VaultImportResult =
+    | {
+        ok: true;
+        mode: "replace" | "merge";
+        entryCount: number;
+    }
+    | {
+        ok: false;
+        error: "ERR_UNLOCK_INVALID_PASSWORD" | "ERR_IMPORT_SCHEMA_UNSUPPORTED" | "ERR_VAULT_CORRUPT";
+    };
+
 export interface VaultLifecycle {
     initialize(): Promise<{ hasVault: boolean; locked: boolean; lastUnlockedAt: string | null }>;
     getStatus(): { hasVault: boolean; locked: boolean; lastUnlockedAt: string | null; preferences: VaultPreferences | null };
@@ -102,6 +125,8 @@ export interface VaultLifecycle {
     unlockVault(masterPassword: string): Promise<VaultLifecycleResult>;
     lockVault(): Promise<VaultLifecycleResult>;
     updatePreferences(preferences: Partial<VaultPreferences>): Promise<VaultLifecycleResult>;
+    exportVaultFile(): Promise<VaultExportResult>;
+    importVaultFile(file: VaultExportFile, masterPassword: string, mode: "replace" | "merge"): Promise<VaultImportResult>;
     listEntries(filters?: { query?: string; favoritesOnly?: boolean }): Promise<VaultListEntriesResult>;
     createEntry(entryInput: EntryCreateInput): Promise<VaultCreateEntryResult>;
     updateEntry(entryId: string, updates: EntryUpdateInput): Promise<VaultUpdateEntryResult>;
@@ -167,6 +192,30 @@ export function createVaultLifecycle(options?: {
         unlockedDocument = null;
         currentMasterPassword = null;
         return { ok: true, hasVault, locked: true };
+    };
+
+    const selectMostRecentEntry = (left: VaultEntry, right: VaultEntry): VaultEntry => {
+        return left.updatedAt >= right.updatedAt ? left : right;
+    };
+
+    const mergeEntries = (localEntries: VaultEntry[], importedEntries: VaultEntry[]): VaultEntry[] => {
+        const byId = new Map<string, VaultEntry>();
+
+        for (const entry of localEntries) {
+            byId.set(entry.id, { ...entry });
+        }
+
+        for (const entry of importedEntries) {
+            const existing = byId.get(entry.id);
+            if (!existing) {
+                byId.set(entry.id, { ...entry });
+                continue;
+            }
+
+            byId.set(entry.id, { ...selectMostRecentEntry(existing, entry) });
+        }
+
+        return [...byId.values()];
     };
 
     return {
@@ -252,6 +301,88 @@ export function createVaultLifecycle(options?: {
             await persistUnlockedDocument();
 
             return { ok: true, hasVault: true, locked: false };
+        },
+        async exportVaultFile() {
+            const envelope = await repository.readEnvelope();
+
+            if (!envelope) {
+                return { ok: false, error: "ERR_VAULT_NOT_FOUND" };
+            }
+
+            return {
+                ok: true,
+                file: {
+                    formatVersion: 1,
+                    exportedAt: now(),
+                    envelope
+                }
+            };
+        },
+        async importVaultFile(file, masterPassword, mode) {
+            if (file.formatVersion !== 1 || file.envelope.schemaVersion !== VAULT_SCHEMA_VERSION) {
+                return { ok: false, error: "ERR_IMPORT_SCHEMA_UNSUPPORTED" };
+            }
+
+            const importedDocumentResult = await openVaultEnvelope(file.envelope, masterPassword);
+            if (!importedDocumentResult.ok) {
+                return { ok: false, error: "ERR_UNLOCK_INVALID_PASSWORD" };
+            }
+
+            const importedDocument = importedDocumentResult.value;
+
+            if (!importedDocument || !Array.isArray(importedDocument.entries) || !importedDocument.preferences || !importedDocument.metadata) {
+                return { ok: false, error: "ERR_VAULT_CORRUPT" };
+            }
+
+            if (mode === "replace") {
+                await repository.saveEnvelope(file.envelope);
+                hasVault = true;
+                currentEnvelope = file.envelope;
+                unlockedDocument = null;
+                currentMasterPassword = null;
+                lastUnlockedAt = file.envelope.meta.lastUnlockedAt ?? null;
+
+                return { ok: true, mode, entryCount: importedDocument.entries.length };
+            }
+
+            const localEnvelope = await repository.readEnvelope();
+            if (!localEnvelope) {
+                await repository.saveEnvelope(file.envelope);
+                hasVault = true;
+                currentEnvelope = file.envelope;
+                unlockedDocument = null;
+                currentMasterPassword = null;
+                lastUnlockedAt = file.envelope.meta.lastUnlockedAt ?? null;
+                return { ok: true, mode, entryCount: importedDocument.entries.length };
+            }
+
+            const localDocumentResult = await openVaultEnvelope(localEnvelope, masterPassword);
+            if (!localDocumentResult.ok) {
+                return { ok: false, error: "ERR_UNLOCK_INVALID_PASSWORD" };
+            }
+
+            const localDocument = localDocumentResult.value;
+            const mergedEntries = mergeEntries(localDocument.entries, importedDocument.entries);
+            const mergedAt = now();
+            const mergedDocument: VaultDocument = {
+                ...localDocument,
+                entries: mergedEntries,
+                metadata: {
+                    ...localDocument.metadata,
+                    updatedAt: mergedAt
+                }
+            };
+
+            const mergedEnvelope = await createVaultEnvelope(mergedDocument, masterPassword, localEnvelope.kdf);
+            await repository.saveEnvelope(mergedEnvelope);
+
+            hasVault = true;
+            currentEnvelope = mergedEnvelope;
+            unlockedDocument = null;
+            currentMasterPassword = null;
+            lastUnlockedAt = mergedEnvelope.meta.lastUnlockedAt ?? null;
+
+            return { ok: true, mode, entryCount: mergedEntries.length };
         },
         async listEntries(filters = {}) {
             if (!unlockedDocument) {

@@ -376,3 +376,187 @@ test("vault lifecycle list remains usable with 500 masked entries", async () => 
         assert.notEqual(entry.maskedPreview, entry.value);
     }
 });
+
+test("vault lifecycle exports encrypted vault file without plaintext", async () => {
+    const store = createMemoryVaultRecordStore();
+    const repository = createVaultRepository(store);
+    const lifecycle = createVaultLifecycle({
+        repository,
+        now: () => "2026-07-16T10:00:00.000Z",
+        createVaultId: () => "vault-phase4-export"
+    });
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+    await lifecycle.createEntry({
+        label: "Passport",
+        value: "P1234567",
+        category: "identity"
+    });
+
+    const exported = await lifecycle.exportVaultFile();
+    assert.equal(exported.ok, true);
+    if (!exported.ok) {
+        assert.fail("Expected export to succeed");
+    }
+
+    assert.equal(exported.file.formatVersion, 1);
+    const serialized = JSON.stringify(exported.file);
+    assert.equal(serialized.includes("P1234567"), false);
+    assert.equal(serialized.includes("Passport"), false);
+});
+
+test("vault lifecycle import replace stores imported encrypted file", async () => {
+    const sourceStore = createMemoryVaultRecordStore();
+    const sourceRepository = createVaultRepository(sourceStore);
+    const sourceLifecycle = createVaultLifecycle({
+        repository: sourceRepository,
+        now: () => "2026-07-16T10:00:00.000Z",
+        createVaultId: () => "vault-phase4-source"
+    });
+
+    await sourceLifecycle.initialize();
+    await sourceLifecycle.createVault("correct horse battery staple");
+    await sourceLifecycle.createEntry({
+        label: "Primary Email",
+        value: "demo@example.com",
+        category: "identity"
+    });
+
+    const exported = await sourceLifecycle.exportVaultFile();
+    assert.equal(exported.ok, true);
+    if (!exported.ok) {
+        assert.fail("Expected export to succeed");
+    }
+
+    const targetStore = createMemoryVaultRecordStore();
+    const targetRepository = createVaultRepository(targetStore);
+    const targetLifecycle = createVaultLifecycle({
+        repository: targetRepository,
+        now: () => "2026-07-16T11:00:00.000Z",
+        createVaultId: () => "vault-phase4-target"
+    });
+
+    await targetLifecycle.initialize();
+    const imported = await targetLifecycle.importVaultFile(exported.file, "correct horse battery staple", "replace");
+
+    assert.deepEqual(imported, { ok: true, mode: "replace", entryCount: 1 });
+
+    const unlockResult = await targetLifecycle.unlockVault("correct horse battery staple");
+    assert.equal(unlockResult.ok, true);
+    const listed = await targetLifecycle.listEntries();
+    assert.equal(listed.ok, true);
+    if (!listed.ok) {
+        assert.fail("Expected listEntries to succeed");
+    }
+
+    assert.equal(listed.entries.length, 1);
+    assert.equal(listed.entries[0]?.label, "Primary Email");
+});
+
+test("vault lifecycle import merge combines local and imported entries", async () => {
+    const sourceStore = createMemoryVaultRecordStore();
+    const sourceRepository = createVaultRepository(sourceStore);
+    const sourceLifecycle = createVaultLifecycle({
+        repository: sourceRepository,
+        now: () => "2026-07-16T10:00:00.000Z",
+        createVaultId: () => "vault-phase4-source"
+    });
+
+    await sourceLifecycle.initialize();
+    await sourceLifecycle.createVault("correct horse battery staple");
+    await sourceLifecycle.createEntry({
+        label: "Imported Entry",
+        value: "imported-value",
+        category: "identity"
+    });
+
+    const exported = await sourceLifecycle.exportVaultFile();
+    assert.equal(exported.ok, true);
+    if (!exported.ok) {
+        assert.fail("Expected export to succeed");
+    }
+
+    const targetStore = createMemoryVaultRecordStore();
+    const targetRepository = createVaultRepository(targetStore);
+    const targetLifecycle = createVaultLifecycle({
+        repository: targetRepository,
+        now: () => "2026-07-16T11:00:00.000Z",
+        createVaultId: () => "vault-phase4-target"
+    });
+
+    await targetLifecycle.initialize();
+    await targetLifecycle.createVault("correct horse battery staple");
+    await targetLifecycle.createEntry({
+        label: "Local Entry",
+        value: "local-value",
+        category: "identity"
+    });
+    await targetLifecycle.lockVault();
+
+    const imported = await targetLifecycle.importVaultFile(exported.file, "correct horse battery staple", "merge");
+    assert.equal(imported.ok, true);
+    if (!imported.ok) {
+        assert.fail("Expected merge import to succeed");
+    }
+
+    const unlockResult = await targetLifecycle.unlockVault("correct horse battery staple");
+    assert.equal(unlockResult.ok, true);
+    const listed = await targetLifecycle.listEntries();
+    assert.equal(listed.ok, true);
+    if (!listed.ok) {
+        assert.fail("Expected listEntries to succeed");
+    }
+
+    assert.equal(listed.entries.length, 2);
+    const labels = new Set(listed.entries.map((entry) => entry.label));
+    assert.equal(labels.has("Imported Entry"), true);
+    assert.equal(labels.has("Local Entry"), true);
+});
+
+test("vault lifecycle import rejects unsupported schema version", async () => {
+    const lifecycle = createLifecycle();
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+    const exported = await lifecycle.exportVaultFile();
+    assert.equal(exported.ok, true);
+    if (!exported.ok) {
+        assert.fail("Expected export to succeed");
+    }
+
+    const invalidFile = {
+        ...exported.file,
+        envelope: {
+            ...exported.file.envelope,
+            schemaVersion: 999 as 1
+        }
+    };
+
+    const imported = await lifecycle.importVaultFile(invalidFile, "correct horse battery staple", "replace");
+    assert.deepEqual(imported, { ok: false, error: "ERR_IMPORT_SCHEMA_UNSUPPORTED" });
+});
+
+test("vault lifecycle import rejects tampered encrypted payload", async () => {
+    const lifecycle = createLifecycle();
+
+    await lifecycle.initialize();
+    await lifecycle.createVault("correct horse battery staple");
+    const exported = await lifecycle.exportVaultFile();
+    assert.equal(exported.ok, true);
+    if (!exported.ok) {
+        assert.fail("Expected export to succeed");
+    }
+
+    const tamperedCiphertext = exported.file.envelope.ciphertext.slice(0, -1) + (exported.file.envelope.ciphertext.endsWith("A") ? "B" : "A");
+    const tamperedFile = {
+        ...exported.file,
+        envelope: {
+            ...exported.file.envelope,
+            ciphertext: tamperedCiphertext
+        }
+    };
+
+    const imported = await lifecycle.importVaultFile(tamperedFile, "correct horse battery staple", "replace");
+    assert.deepEqual(imported, { ok: false, error: "ERR_UNLOCK_INVALID_PASSWORD" });
+});

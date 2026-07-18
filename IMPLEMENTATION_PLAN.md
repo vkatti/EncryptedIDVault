@@ -206,7 +206,7 @@ Goals:
 - Gate paid sync features without blocking local vault access.
 
 Deliverables:
-- Stripe checkout integration.
+- Razorpay checkout integration.
 - Account linking flow.
 - Signed entitlement issuance.
 - Entitlement cache and refresh logic in the extension.
@@ -399,12 +399,12 @@ This section is the implementation backlog. It is ordered so the first tasks unb
 | Add redaction and clear controls | Audit data must never become a secret leak |          S | Phase 2      | User can clear history and logs never contain plaintext values                           |
 
 ### Test infrastructure
-| Task                                     | Why it exists                                            | Complexity | Dependencies | Done criteria                                                           |
-| ---------------------------------------- | -------------------------------------------------------- | ---------: | ------------ | ----------------------------------------------------------------------- |
-| Set up unit tests for crypto and schemas | Core invariants need fast feedback                       |          M | Phase 0      | Crypto, message schemas, and migration logic are covered                |
-| Set up browser-level extension tests     | The main flows only matter in a real browser             |          L | Phase 0      | Popup, options, insertion, and lock/unlock are automated                |
-| Set up storage inspection tests          | Security depends on the absence of plaintext persistence |          L | Phase 1      | CI checks browser storage and exported files for plaintext leakage      |
-| Set up provider and billing mocks        | Sync and checkout need isolated verification             |          M | Phase 5      | Drive, Dropbox, and Stripe scenarios are testable without real accounts |
+| Task                                     | Why it exists                                            | Complexity | Dependencies | Done criteria                                                             |
+| ---------------------------------------- | -------------------------------------------------------- | ---------: | ------------ | ------------------------------------------------------------------------- |
+| Set up unit tests for crypto and schemas | Core invariants need fast feedback                       |          M | Phase 0      | Crypto, message schemas, and migration logic are covered                  |
+| Set up browser-level extension tests     | The main flows only matter in a real browser             |          L | Phase 0      | Popup, options, insertion, and lock/unlock are automated                  |
+| Set up storage inspection tests          | Security depends on the absence of plaintext persistence |          L | Phase 1      | CI checks browser storage and exported files for plaintext leakage        |
+| Set up provider and billing mocks        | Sync and checkout need isolated verification             |          M | Phase 5      | Drive, Dropbox, and Razorpay scenarios are testable without real accounts |
 
 ### Release packaging
 | Task                                     | Why it exists                                      | Complexity | Dependencies | Done criteria                                                                       |

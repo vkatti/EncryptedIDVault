@@ -10,12 +10,6 @@ export function createServer() {
             return;
         }
 
-        if (request.url === "/webhooks/stripe") {
-            response.writeHead(501, { "content-type": "application/json" });
-            response.end(JSON.stringify({ ok: false, error: "webhook_not_implemented", provider: "stripe" }));
-            return;
-        }
-
         response.writeHead(404, { "content-type": "application/json" });
         response.end(JSON.stringify({ error: "not_found" }));
     });

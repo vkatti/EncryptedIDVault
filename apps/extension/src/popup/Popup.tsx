@@ -630,13 +630,13 @@ export function Popup() {
                     align-items: center;
                     justify-content: center;
                     color: #6e8ea8;
-                    opacity: 0.42;
-                    filter: blur(3px);
+                    opacity: 0.5;
+                    filter: blur(2px);
                     pointer-events: none;
                 }
                 .locked-hero .lock-bg svg {
-                    width: 180px;
-                    height: 180px;
+                    width: 280px;
+                    height: 280px;
                 }
                 .locked-hero .unlock-input {
                     position: relative;
@@ -886,7 +886,7 @@ export function Popup() {
                     </>
                 ) : (
                     <div className="row">
-                        <button type="button" className="warn" disabled={busy} onClick={() => void runAction("vault/lock")}> 
+                        <button type="button" className="warn" disabled={busy} onClick={() => void runAction("vault/lock")}>
                             <span className="lock-button-label">
                                 <LockIcon title="Lock vault" />
                                 Lock vault

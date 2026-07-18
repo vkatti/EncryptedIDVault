@@ -152,9 +152,9 @@ export function createServer() {
             return;
         }
 
-        if (request.url === "/webhooks/stripe") {
+        if (request.url === "/webhooks/razorpay") {
             response.writeHead(501, { "content-type": "application/json" });
-            response.end(JSON.stringify({ ok: false, error: "webhook_not_implemented", provider: "stripe" }));
+            response.end(JSON.stringify({ ok: false, error: "webhook_not_implemented", provider: "razorpay" }));
             return;
         }
 

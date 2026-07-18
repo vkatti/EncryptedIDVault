@@ -32,13 +32,13 @@ test("GET /health returns ok payload", async () => {
     });
 });
 
-test("POST /webhooks/stripe returns placeholder not implemented response", async () => {
+test("POST /webhooks/razorpay returns placeholder not implemented response", async () => {
     await withServer(async (baseUrl) => {
-        const response = await fetch(`${baseUrl}/webhooks/stripe`, { method: "POST" });
+        const response = await fetch(`${baseUrl}/webhooks/razorpay`, { method: "POST" });
         const body = await response.json();
 
         assert.equal(response.status, 501);
-        assert.deepEqual(body, { ok: false, error: "webhook_not_implemented", provider: "stripe" });
+        assert.deepEqual(body, { ok: false, error: "webhook_not_implemented", provider: "razorpay" });
     });
 });
 

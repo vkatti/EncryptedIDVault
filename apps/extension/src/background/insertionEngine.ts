@@ -50,8 +50,12 @@ export async function rememberSelectedEntryId(entryId: string): Promise<void> {
 }
 
 async function sendInsertMessageToActiveTab(entry: VaultEntry, fallbackToClipboard?: boolean, frameId?: number): Promise<ContentScriptInsertResponse | null> {
-    const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const activeTab = activeTabs[0];
+    // Prefer the current browser window, but fall back to the last focused window
+    // because popup actions can make the popup window "current" with no active tab.
+    const activeTabsInCurrentWindow = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTab = activeTabsInCurrentWindow[0]
+        ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]
+        ?? (await chrome.tabs.query({ active: true }))[0];
 
     if (!activeTab?.id) {
         return null;

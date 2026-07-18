@@ -5,9 +5,10 @@ export const manifest = {
     action: {
         default_title: "Encrypted ID Vault"
     },
+    options_page: "options.html",
     content_scripts: [
         {
-            matches: ["http://*/*", "https://*/*"],
+            matches: ["file://*/*", "http://*/*", "https://*/*"],
             js: ["contentScript.js"],
             all_frames: true,
             run_at: "document_idle"
@@ -32,6 +33,6 @@ export const manifest = {
             description: "Insert selected entry into focused field"
         }
     },
-    host_permissions: ["http://*/*", "https://*/*"],
+    host_permissions: ["file://*/*", "http://*/*", "https://*/*"],
     minimum_chrome_version: "120"
 } as const;

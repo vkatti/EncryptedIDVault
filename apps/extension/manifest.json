@@ -6,9 +6,11 @@
         "default_title": "Encrypted ID Vault",
         "default_popup": "popup.html"
     },
+    "options_page": "options.html",
     "content_scripts": [
         {
             "matches": [
+                "file://*/*",
                 "http://*/*",
                 "https://*/*"
             ],
@@ -44,6 +46,7 @@
         }
     },
     "host_permissions": [
+        "file://*/*",
         "http://*/*",
         "https://*/*"
     ],

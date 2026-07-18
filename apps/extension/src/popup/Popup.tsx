@@ -63,7 +63,6 @@ type VaultImportResponse = {
 };
 
 type Action = "vault/getStatus" | "vault/create" | "vault/unlock" | "vault/lock";
-type PreferenceField = keyof VaultPreferences;
 
 type EntryFormState = {
     label: string;
@@ -124,18 +123,6 @@ async function sendMessage(action: Action, payload: Record<string, unknown>): Pr
     )) as StatusResponse;
 }
 
-async function savePreferencesMessage(payload: VaultPreferences): Promise<PreferencesResponse> {
-    return (await chrome.runtime.sendMessage(
-        createMessageEnvelope({
-            id: crypto.randomUUID(),
-            type: "vault/updatePreferences",
-            source: "popup",
-            target: "background",
-            payload
-        })
-    )) as PreferencesResponse;
-}
-
 async function listEntriesMessage(payload: { query?: string; favoritesOnly?: boolean }): Promise<EntryListResponse> {
     return (await chrome.runtime.sendMessage(
         createMessageEnvelope({
@@ -146,18 +133,6 @@ async function listEntriesMessage(payload: { query?: string; favoritesOnly?: boo
             payload
         })
     )) as EntryListResponse;
-}
-
-async function createEntryMessage(payload: { label: string; value: string; category: string; notes?: string; favorite?: boolean }): Promise<EntryMutationResponse> {
-    return (await chrome.runtime.sendMessage(
-        createMessageEnvelope({
-            id: crypto.randomUUID(),
-            type: "entries/create",
-            source: "popup",
-            target: "background",
-            payload
-        })
-    )) as EntryMutationResponse;
 }
 
 async function updateEntryMessage(payload: {
@@ -215,34 +190,6 @@ async function insertEntryMessage(payload: { entryId: string }): Promise<InsertR
     )) as InsertResponse;
 }
 
-async function exportVaultMessage(): Promise<VaultExportResponse> {
-    return (await chrome.runtime.sendMessage(
-        createMessageEnvelope({
-            id: crypto.randomUUID(),
-            type: "vault/export",
-            source: "popup",
-            target: "background",
-            payload: {}
-        })
-    )) as VaultExportResponse;
-}
-
-async function importVaultMessage(payload: {
-    file: VaultExportFile;
-    masterPassword: string;
-    mode: "replace" | "merge";
-}): Promise<VaultImportResponse> {
-    return (await chrome.runtime.sendMessage(
-        createMessageEnvelope({
-            id: crypto.randomUUID(),
-            type: "vault/import",
-            source: "popup",
-            target: "background",
-            payload
-        })
-    )) as VaultImportResponse;
-}
-
 export function isVaultExportFile(value: unknown): value is VaultExportFile {
     if (!value || typeof value !== "object") {
         return false;
@@ -275,14 +222,6 @@ function downloadVaultFile(file: VaultExportFile): void {
     URL.revokeObjectURL(objectUrl);
 }
 
-const DEFAULT_PREFERENCES: VaultPreferences = {
-    autoLockMinutes: 5,
-    defaultInsertMode: "insert",
-    clipboardWarningEnabled: true,
-    theme: "system",
-    telemetryEnabled: false
-};
-
 const DEFAULT_ENTRY_FORM: EntryFormState = {
     label: "",
     value: "",
@@ -304,20 +243,10 @@ export function Popup() {
     const [error, setError] = React.useState<string | null>(null);
     const [masterPassword, setMasterPassword] = React.useState("");
     const [busy, setBusy] = React.useState(false);
-    const [preferences, setPreferences] = React.useState<VaultPreferences>(DEFAULT_PREFERENCES);
     const [entries, setEntries] = React.useState<VaultEntry[]>([]);
     const [entryFilters, setEntryFilters] = React.useState({ query: "", favoritesOnly: false });
-    const [newEntry, setNewEntry] = React.useState<EntryFormState>(DEFAULT_ENTRY_FORM);
     const [editingEntryId, setEditingEntryId] = React.useState<string | null>(null);
     const [editingEntry, setEditingEntry] = React.useState<EntryFormState>(DEFAULT_ENTRY_FORM);
-    const [importMode, setImportMode] = React.useState<"replace" | "merge">("merge");
-    const [importPassword, setImportPassword] = React.useState("");
-    const [importFile, setImportFile] = React.useState<VaultExportFile | null>(null);
-    const [importFileName, setImportFileName] = React.useState<string | null>(null);
-    const [lastImportSummary, setLastImportSummary] = React.useState<string | null>(null);
-    const [lastExportSummary, setLastExportSummary] = React.useState<string | null>(null);
-    const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
-
     const passwordStrength = getPasswordStrength(masterPassword);
 
     const refreshStatus = React.useCallback(async () => {
@@ -329,21 +258,12 @@ export function Popup() {
         }
 
         setStatus(response.state);
-        if (response.state.preferences) {
-            setPreferences(response.state.preferences);
-        }
         setError(null);
     }, []);
 
     React.useEffect(() => {
         void refreshStatus();
     }, [refreshStatus]);
-
-    React.useEffect(() => {
-        if (status.preferences) {
-            setPreferences(status.preferences);
-        }
-    }, [status.preferences]);
 
     const runAction = React.useCallback(
         async (action: Exclude<Action, "vault/getStatus">) => {
@@ -365,28 +285,6 @@ export function Popup() {
         },
         [masterPassword, refreshStatus]
     );
-
-    const updatePreference = React.useCallback(<K extends PreferenceField>(field: K, value: VaultPreferences[K]) => {
-        setPreferences((current) => ({
-            ...current,
-            [field]: value
-        }));
-    }, []);
-
-    const savePreferences = React.useCallback(async () => {
-        setBusy(true);
-        const response = await savePreferencesMessage(preferences);
-
-        if (!response.ok) {
-            setError(response.error ?? "Unable to save preferences");
-            setBusy(false);
-            return;
-        }
-
-        setError(null);
-        await refreshStatus();
-        setBusy(false);
-    }, [preferences, refreshStatus]);
 
     const loadEntries = React.useCallback(async () => {
         if (!status.hasVault || status.locked) {
@@ -410,33 +308,6 @@ export function Popup() {
     React.useEffect(() => {
         void loadEntries();
     }, [loadEntries]);
-
-    const createEntry = React.useCallback(async () => {
-        if (newEntry.label.trim().length === 0 || newEntry.value.trim().length === 0 || newEntry.category.trim().length === 0) {
-            setError("Label, value, and category are required");
-            return;
-        }
-
-        setBusy(true);
-        const response = await createEntryMessage({
-            label: newEntry.label.trim(),
-            value: newEntry.value,
-            category: newEntry.category.trim(),
-            notes: newEntry.notes.trim() || undefined,
-            favorite: newEntry.favorite
-        });
-
-        if (!response.ok) {
-            setError(response.error ?? "Unable to create entry");
-            setBusy(false);
-            return;
-        }
-
-        setError(null);
-        setNewEntry(DEFAULT_ENTRY_FORM);
-        await loadEntries();
-        setBusy(false);
-    }, [loadEntries, newEntry]);
 
     const startEditingEntry = React.useCallback((entry: VaultEntry) => {
         setEditingEntryId(entry.id);
@@ -535,184 +406,183 @@ export function Popup() {
         setBusy(false);
     }, [refreshStatus]);
 
-    const exportVault = React.useCallback(async () => {
-        setBusy(true);
-        const response = await exportVaultMessage();
-
-        if (!response.ok || !response.file) {
-            setError(getVaultExportErrorMessage(response.error));
-            setBusy(false);
-            return;
-        }
-
-        downloadVaultFile(response.file);
-        setLastExportSummary(`Exported encrypted vault at ${response.file.exportedAt}`);
-        setLastImportSummary(null);
-        setError(null);
-        setBusy(false);
+    const openOptions = React.useCallback(() => {
+        void chrome.runtime.openOptionsPage();
     }, []);
-
-    const selectImportFile = React.useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const selected = event.target.files?.[0];
-
-        if (!selected) {
-            setImportFile(null);
-            setImportFileName(null);
-            return;
-        }
-
-        try {
-            const parsed = await readImportFile(selected);
-            setImportFile(parsed);
-            setImportFileName(selected.name);
-            setLastImportSummary(null);
-            setError(null);
-        } catch {
-            setImportFile(null);
-            setImportFileName(null);
-            setError("Selected file is not a valid encrypted vault export");
-        }
-    }, []);
-
-    const importVault = React.useCallback(async () => {
-        if (!importFile) {
-            setError("Select a vault export file before importing");
-            return;
-        }
-
-        if (importPassword.trim().length === 0) {
-            setError("Master password is required for import");
-            return;
-        }
-
-        setBusy(true);
-        const response = await importVaultMessage({
-            file: importFile,
-            masterPassword: importPassword,
-            mode: importMode
-        });
-
-        if (!response.ok) {
-            setError(getVaultImportErrorMessage(response.error));
-            setBusy(false);
-            return;
-        }
-
-        setError(null);
-        setMasterPassword("");
-        setImportPassword("");
-        setImportFile(null);
-        setImportFileName(null);
-        setLastExportSummary(null);
-        setLastImportSummary(`Imported ${response.entryCount ?? 0} entries using ${response.mode ?? importMode} mode`);
-        if (importFileInputRef.current) {
-            importFileInputRef.current.value = "";
-        }
-
-        await refreshStatus();
-        await loadEntries();
-        setBusy(false);
-    }, [importFile, importMode, importPassword, loadEntries, refreshStatus]);
 
     return (
-        <main>
-            <h1>Encrypted ID Vault</h1>
-            <p>Installed: {status.installedAt ?? "loading..."}</p>
-            <p>Vault: {status.hasVault ? "present" : "not created yet"}</p>
-            <p>State: {status.locked ? "locked" : "unlocked"}</p>
-            {status.lastMessageAt ? <p>Last message: {status.lastMessageAt}</p> : null}
-            {status.lastUserTrigger ? <p>Last trigger: {status.lastUserTrigger}</p> : null}
-            {status.lastUnlockedAt ? <p>Last unlocked: {status.lastUnlockedAt}</p> : null}
-            {status.preferences ? (
-                <section>
-                    <h2>Vault preferences</h2>
-                    <label>
-                        Auto-lock minutes
-                        <input
-                            type="number"
-                            min={0}
-                            value={preferences.autoLockMinutes}
-                            onChange={(event) => updatePreference("autoLockMinutes", Number(event.target.value))}
-                        />
-                    </label>
-                    <label>
-                        Default insert mode
-                        <select
-                            value={preferences.defaultInsertMode}
-                            onChange={(event) => updatePreference("defaultInsertMode", event.target.value as VaultPreferences["defaultInsertMode"])}
-                        >
-                            <option value="insert">Insert</option>
-                            <option value="copy">Copy</option>
-                        </select>
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={preferences.clipboardWarningEnabled}
-                            onChange={(event) => updatePreference("clipboardWarningEnabled", event.target.checked)}
-                        />
-                        Clipboard warning enabled
-                    </label>
-                    <label>
-                        Theme
-                        <select value={preferences.theme} onChange={(event) => updatePreference("theme", event.target.value as VaultPreferences["theme"])}>
-                            <option value="system">System</option>
-                            <option value="light">Light</option>
-                            <option value="dark">Dark</option>
-                        </select>
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={preferences.telemetryEnabled}
-                            onChange={(event) => updatePreference("telemetryEnabled", event.target.checked)}
-                        />
-                        Telemetry enabled
-                    </label>
-                    <button type="button" disabled={busy} onClick={() => void savePreferences()}>
-                        Save preferences
-                    </button>
-                </section>
-            ) : null}
-            {status.hasVault ? (
-                <section>
-                    <h2>Backup and restore</h2>
-                    <button type="button" disabled={busy} onClick={() => void exportVault()}>
-                        Export encrypted vault
-                    </button>
-                    {lastExportSummary ? <p>{lastExportSummary}</p> : null}
+        <main className="popup-shell">
+            <style>{`
+                :root {
+                    font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+                    color: #102a43;
+                }
+                body {
+                    margin: 0;
+                    min-width: 420px;
+                    background:
+                        radial-gradient(circle at 80% 0%, #ffe8d1 0%, transparent 45%),
+                        linear-gradient(180deg, #fdf7ef 0%, #f4f8fc 100%);
+                }
+                .popup-shell {
+                    padding: 14px;
+                    display: grid;
+                    gap: 12px;
+                }
+                .card {
+                    border: 1px solid #d7e2ee;
+                    border-radius: 14px;
+                    background: #ffffffd9;
+                    box-shadow: 0 8px 20px rgba(16, 42, 67, 0.08);
+                    padding: 12px;
+                    display: grid;
+                    gap: 8px;
+                }
+                h1 {
+                    margin: 0;
+                    font-size: 1.2rem;
+                    letter-spacing: 0.02em;
+                }
+                h2 {
+                    margin: 0;
+                    font-size: 1rem;
+                }
+                h3 {
+                    margin: 0;
+                    font-size: 0.92rem;
+                }
+                p {
+                    margin: 0;
+                }
+                label {
+                    display: grid;
+                    gap: 5px;
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                }
+                input {
+                    border: 1px solid #b4c6d8;
+                    border-radius: 8px;
+                    padding: 8px;
+                    font: inherit;
+                    color: #102a43;
+                }
+                .muted {
+                    color: #627d98;
+                    font-size: 0.85rem;
+                }
+                .row {
+                    display: flex;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                    align-items: center;
+                }
+                .entry-actions {
+                    display: flex;
+                    gap: 6px;
+                    flex-wrap: wrap;
+                }
+                button {
+                    border-radius: 8px;
+                    border: 1px solid #0b6e4f;
+                    background: #0b6e4f;
+                    color: #fff;
+                    padding: 7px 10px;
+                    font: inherit;
+                    font-size: 0.86rem;
+                    cursor: pointer;
+                }
+                button.secondary {
+                    background: #fff;
+                    color: #0b6e4f;
+                }
+                button.warn {
+                    border-color: #b42318;
+                    background: #b42318;
+                }
+                button:disabled {
+                    opacity: 0.45;
+                    cursor: not-allowed;
+                }
+                .entry {
+                    border: 1px solid #d7e2ee;
+                    border-radius: 10px;
+                    background: #f9fbff;
+                    padding: 10px;
+                    display: grid;
+                    gap: 7px;
+                }
+                .entry-header {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 8px;
+                    align-items: baseline;
+                }
+                .pill {
+                    border: 1px solid #d1e9dd;
+                    border-radius: 99px;
+                    padding: 2px 8px;
+                    background: #ecfdf3;
+                    color: #067647;
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                }
+                .alert {
+                    border-radius: 8px;
+                    border: 1px solid #f5c2c7;
+                    background: #fff1f3;
+                    color: #842029;
+                    padding: 8px;
+                    font-size: 0.85rem;
+                }
+            `}</style>
 
-                    <h3>Import encrypted vault</h3>
-                    <label>
-                        Import mode
-                        <select value={importMode} onChange={(event) => setImportMode(event.target.value as "replace" | "merge")}>
-                            <option value="merge">Merge with current vault</option>
-                            <option value="replace">Replace current vault</option>
-                        </select>
-                    </label>
-                    {importMode === "replace" ? <p>Replace mode will overwrite your current encrypted vault with the imported file.</p> : null}
-                    <label>
-                        Vault file
-                        <input ref={importFileInputRef} type="file" accept=".json,.enc.json,application/json" onChange={(event) => void selectImportFile(event)} />
-                    </label>
-                    {importFileName ? <p>Selected file: {importFileName}</p> : null}
-                    <label>
-                        Master password for imported vault
-                        <input
-                            type="password"
-                            value={importPassword}
-                            onChange={(event) => setImportPassword(event.target.value)}
-                            placeholder="Enter master password"
-                        />
-                    </label>
-                    <button type="button" disabled={busy || !importFile || importPassword.trim().length === 0} onClick={() => void importVault()}>
-                        Import encrypted vault
-                    </button>
-                    {lastImportSummary ? <p>{lastImportSummary}</p> : null}
-                </section>
-            ) : null}
+            <section className="card">
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                    <h1>Encrypted ID Vault</h1>
+                    <div className="row">
+                        <button type="button" className="secondary" onClick={() => void refreshStatus()} disabled={busy}>Refresh</button>
+                        <button type="button" className="secondary" onClick={openOptions}>Open settings</button>
+                    </div>
+                </div>
+                <div className="row">
+                    <span className="pill">{status.locked ? "Locked" : "Unlocked"}</span>
+                    <span className="muted">{status.hasVault ? "Vault ready" : "No vault yet"}</span>
+                </div>
+                {!status.hasVault ? <p className="muted">Create your vault to start storing entries. Advanced settings are in Options.</p> : null}
+                {status.hasVault && status.locked ? <p className="muted">Unlock to use your entries in this tab.</p> : null}
+
+                {!status.hasVault || status.locked ? (
+                    <>
+                        <label>
+                            Master password
+                            <input
+                                type="password"
+                                value={masterPassword}
+                                minLength={8}
+                                onChange={(event) => setMasterPassword(event.target.value)}
+                                placeholder="Enter master password"
+                            />
+                        </label>
+                        <p className="muted">Password strength: {passwordStrength}</p>
+                        <div className="row">
+                            {!status.hasVault ? (
+                                <button type="button" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>Create vault</button>
+                            ) : null}
+                            {status.hasVault && status.locked ? (
+                                <button type="button" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
+                            ) : null}
+                        </div>
+                    </>
+                ) : (
+                    <div className="row">
+                        <button type="button" className="warn" disabled={busy} onClick={() => void runAction("vault/lock")}>Lock vault</button>
+                    </div>
+                )}
+            </section>
+
             {status.hasVault && !status.locked ? (
-                <section>
+                <section className="card">
                     <h2>Entries</h2>
                     <label>
                         Search entries
@@ -723,7 +593,7 @@ export function Popup() {
                             placeholder="Label, category, or notes"
                         />
                     </label>
-                    <label>
+                    <label className="row" style={{ fontWeight: 500 }}>
                         <input
                             type="checkbox"
                             checked={entryFilters.favoritesOnly}
@@ -731,63 +601,19 @@ export function Popup() {
                         />
                         Favorites only
                     </label>
-                    <button type="button" disabled={busy} onClick={() => void loadEntries()}>
-                        Refresh entries
-                    </button>
 
-                    <h3>Create entry</h3>
-                    <label>
-                        Label
-                        <input
-                            type="text"
-                            value={newEntry.label}
-                            onChange={(event) => setNewEntry((current) => ({ ...current, label: event.target.value }))}
-                        />
-                    </label>
-                    <label>
-                        Value
-                        <input
-                            type="text"
-                            value={newEntry.value}
-                            onChange={(event) => setNewEntry((current) => ({ ...current, value: event.target.value }))}
-                        />
-                    </label>
-                    <label>
-                        Category
-                        <input
-                            type="text"
-                            value={newEntry.category}
-                            onChange={(event) => setNewEntry((current) => ({ ...current, category: event.target.value }))}
-                        />
-                    </label>
-                    <label>
-                        Notes
-                        <input
-                            type="text"
-                            value={newEntry.notes}
-                            onChange={(event) => setNewEntry((current) => ({ ...current, notes: event.target.value }))}
-                        />
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={newEntry.favorite}
-                            onChange={(event) => setNewEntry((current) => ({ ...current, favorite: event.target.checked }))}
-                        />
-                        Favorite
-                    </label>
-                    <button type="button" disabled={busy} onClick={() => void createEntry()}>
-                        Create entry
-                    </button>
+                    <p className="muted">Create new entries from Options to Entry manager.</p>
 
                     <h3>Entry list</h3>
-                    {entries.length === 0 ? <p>No entries yet.</p> : null}
+                    {entries.length === 0 ? <p className="muted">No entries yet.</p> : null}
                     {entries.map((entry, index) => (
-                        <article key={entry.id}>
-                            <p>
-                                <strong>{entry.label}</strong> ({entry.category})
-                            </p>
-                            <p>Preview: {entry.maskedPreview}</p>
+                        <article key={entry.id} className="entry">
+                            <div className="entry-header">
+                                <strong>{entry.label}</strong>
+                                <span className="muted">{entry.category}</span>
+                            </div>
+                            <p className="muted">Preview: {entry.maskedPreview}</p>
+
                             {editingEntryId === entry.id ? (
                                 <>
                                     <label>
@@ -822,7 +648,7 @@ export function Popup() {
                                             onChange={(event) => setEditingEntry((current) => ({ ...current, notes: event.target.value }))}
                                         />
                                     </label>
-                                    <label>
+                                    <label className="row" style={{ fontWeight: 500 }}>
                                         <input
                                             type="checkbox"
                                             checked={editingEntry.favorite}
@@ -830,77 +656,30 @@ export function Popup() {
                                         />
                                         Favorite
                                     </label>
-                                    <button type="button" disabled={busy} onClick={() => void saveEditedEntry()}>
-                                        Save entry
-                                    </button>
-                                    <button type="button" disabled={busy} onClick={cancelEditingEntry}>
-                                        Cancel
-                                    </button>
+                                    <div className="entry-actions">
+                                        <button type="button" disabled={busy} onClick={() => void saveEditedEntry()}>Save</button>
+                                        <button type="button" className="secondary" disabled={busy} onClick={cancelEditingEntry}>Cancel</button>
+                                    </div>
                                 </>
                             ) : (
                                 <>
-                                    {entry.notes ? <p>Notes: {entry.notes}</p> : null}
-                                    <p>Favorite: {entry.favorite ? "yes" : "no"}</p>
-                                    <button type="button" disabled={busy} onClick={() => startEditingEntry(entry)}>
-                                        Edit entry
-                                    </button>
-                                    <button type="button" disabled={busy} onClick={() => void insertEntry(entry.id)}>
-                                        Insert entry
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={busy || index === 0}
-                                        onClick={() => void moveEntry(entry.id, index - 1)}
-                                    >
-                                        Move up
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={busy || index === entries.length - 1}
-                                        onClick={() => void moveEntry(entry.id, index + 1)}
-                                    >
-                                        Move down
-                                    </button>
-                                    <button type="button" disabled={busy} onClick={() => void deleteEntry(entry.id)}>
-                                        Delete entry
-                                    </button>
+                                    {entry.notes ? <p className="muted">Notes: {entry.notes}</p> : null}
+                                    <p className="muted">Favorite: {entry.favorite ? "yes" : "no"}</p>
+                                    <div className="entry-actions">
+                                        <button type="button" className="secondary" disabled={busy} onClick={() => startEditingEntry(entry)}>Edit</button>
+                                        <button type="button" disabled={busy} onClick={() => void insertEntry(entry.id)}>Insert</button>
+                                        <button type="button" className="secondary" disabled={busy || index === 0} onClick={() => void moveEntry(entry.id, index - 1)}>Up</button>
+                                        <button type="button" className="secondary" disabled={busy || index === entries.length - 1} onClick={() => void moveEntry(entry.id, index + 1)}>Down</button>
+                                        <button type="button" className="warn" disabled={busy} onClick={() => void deleteEntry(entry.id)}>Delete</button>
+                                    </div>
                                 </>
                             )}
                         </article>
                     ))}
                 </section>
             ) : null}
-            {status.hasVault ? null : <p>Create a master password to bootstrap your encrypted local vault.</p>}
-            {status.locked ? <p>Unlock is required to access vault entries in this session.</p> : <p>Vault is unlocked in memory only.</p>}
 
-            {status.locked ? (
-                <label>
-                    Master password
-                    <input
-                        type="password"
-                        value={masterPassword}
-                        minLength={8}
-                        onChange={(event) => setMasterPassword(event.target.value)}
-                        placeholder="At least 8 characters"
-                    />
-                </label>
-            ) : null}
-
-            {status.locked ? <p>Password strength: {passwordStrength}</p> : null}
-
-            {error ? <p role="alert">{error}</p> : null}
-            <button type="button" onClick={() => void refreshStatus()}>
-                Refresh status
-            </button>
-            {!status.hasVault ? (
-                <button type="button" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>Create vault</button>
-            ) : null}
-            {status.hasVault && status.locked ? (
-                <button type="button" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
-            ) : null}
-            {status.hasVault && !status.locked ? (
-                <button type="button" disabled={busy} onClick={() => void runAction("vault/lock")}>Lock vault</button>
-            ) : null}
+            {error ? <p role="alert" className="alert">{error}</p> : null}
         </main>
     );
 }

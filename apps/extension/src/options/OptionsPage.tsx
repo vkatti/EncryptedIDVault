@@ -849,6 +849,67 @@ export function OptionsPage() {
                     gap: 8px;
                 }
                 .stack { display: grid; gap: 8px; }
+                .lifecycle-card {
+                    gap: 14px;
+                }
+                .lifecycle-head {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 10px;
+                    flex-wrap: wrap;
+                }
+                .lifecycle-state-chip {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border-radius: 999px;
+                    padding: 5px 10px;
+                    font-size: 0.82rem;
+                    font-weight: 700;
+                }
+                .lifecycle-state-chip.locked {
+                    color: #b42318;
+                    background: #fff1f3;
+                    border: 1px solid #f7c6cd;
+                }
+                .lifecycle-state-chip.unlocked {
+                    color: #067647;
+                    background: #ecfdf3;
+                    border: 1px solid #b7ebc6;
+                }
+                .lifecycle-metrics {
+                    display: grid;
+                    gap: 10px;
+                    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+                }
+                .lifecycle-metric {
+                    border: 1px solid #dbe7f2;
+                    border-radius: 12px;
+                    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+                    padding: 10px;
+                    display: grid;
+                    gap: 4px;
+                }
+                .lifecycle-metric-label {
+                    color: #4d6b88;
+                    font-size: 0.78rem;
+                    letter-spacing: 0.02em;
+                    text-transform: uppercase;
+                    font-weight: 700;
+                }
+                .lifecycle-metric-value {
+                    color: var(--ink);
+                    font-size: 0.92rem;
+                    font-weight: 700;
+                    overflow-wrap: anywhere;
+                }
+                .lifecycle-password {
+                    max-width: 380px;
+                }
+                .lifecycle-actions {
+                    margin-top: 2px;
+                }
             `}</style>
 
             <section className="hero">
@@ -1025,28 +1086,57 @@ export function OptionsPage() {
             ) : null}
 
             {activeTab === "lifecycle" ? (
-                <section className="card">
-                    <h2 style={{ margin: 0 }}>Vault lifecycle</h2>
-                    <p className="muted">Installed: {status.installedAt ?? "loading..."}</p>
-                    <p className="muted">State: {status.locked ? "locked" : "unlocked"}</p>
-                    <p className="muted">Last unlocked: {status.lastUnlockedAt ?? "never"}</p>
-                    {remainingLockSeconds !== null ? <p className="muted">Auto-locking vault in {remainingLockSeconds} seconds</p> : null}
+                <section className="card lifecycle-card">
+                    <div className="lifecycle-head">
+                        <h2 style={{ margin: 0 }}>Vault lifecycle</h2>
+                        <span className={`lifecycle-state-chip ${status.locked ? "locked" : "unlocked"}`}>
+                            {status.locked ? "Locked" : "Unlocked"}
+                        </span>
+                    </div>
 
-                    <label className="stack" style={{ maxWidth: 360 }}>
+                    <div className="lifecycle-metrics">
+                        <div className="lifecycle-metric">
+                            <span className="lifecycle-metric-label">Installed</span>
+                            <span className="lifecycle-metric-value">{status.installedAt ?? "loading..."}</span>
+                        </div>
+                        <div className="lifecycle-metric">
+                            <span className="lifecycle-metric-label">Last unlocked</span>
+                            <span className="lifecycle-metric-value">{status.lastUnlockedAt ?? "never"}</span>
+                        </div>
+                        <div className="lifecycle-metric">
+                            <span className="lifecycle-metric-label">Auto-lock timer</span>
+                            <span className="lifecycle-metric-value">
+                                {remainingLockSeconds !== null ? `${remainingLockSeconds} seconds remaining` : "Vault locked"}
+                            </span>
+                        </div>
+                    </div>
+
+                    <label className="stack lifecycle-password">
                         Master password
                         <input type="password" value={masterPassword} minLength={8} onChange={(event) => setMasterPassword(event.target.value)} placeholder="Enter master password" />
                     </label>
 
-                    <div className="control-row">
-                        <button type="button" className="btn secondary" disabled={busy} onClick={() => void refreshStatus()}>Refresh status</button>
+                    <div className="control-row lifecycle-actions">
+                        <button type="button" className="btn secondary" disabled={busy} onClick={() => void refreshStatus()}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                <Icon path={ICONS.lifecycle} title="Refresh" />
+                                Refresh status
+                            </span>
+                        </button>
                         {!status.hasVault ? (
-                            <button type="button" className="btn" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>Create vault</button>
+                            <button type="button" className="btn" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>
+                                Create vault
+                            </button>
                         ) : null}
                         {status.hasVault && status.locked ? (
-                            <button type="button" className="btn" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
+                            <button type="button" className="btn" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>
+                                Unlock vault
+                            </button>
                         ) : null}
                         {status.hasVault && !status.locked ? (
-                            <button type="button" className="btn" disabled={busy} onClick={() => void runAction("vault/lock")}>Lock vault</button>
+                            <button type="button" className="btn" disabled={busy} onClick={() => void runAction("vault/lock")}>
+                                Lock vault
+                            </button>
                         ) : null}
                     </div>
                 </section>

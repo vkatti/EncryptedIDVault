@@ -6,6 +6,7 @@ import type {
     MessageTarget,
     InsertEntryPayload,
     InsertTargetMessage,
+    VaultExportFile,
     UpdateEntryPayload,
     EntriesCreateMessage,
     EntriesDeleteMessage,
@@ -14,7 +15,9 @@ import type {
     EntriesReorderMessage,
     EntriesUpdateMessage,
     VaultCreateMessage,
+    VaultExportMessage,
     VaultGetStatusMessage,
+    VaultImportMessage,
     VaultLockMessage,
     VaultUpdatePreferencesMessage,
     VaultUnlockMessage
@@ -40,12 +43,39 @@ type RoutedBackgroundMessage =
     | VaultCreateMessage
     | VaultUnlockMessage
     | VaultLockMessage
+    | VaultExportMessage
+    | VaultImportMessage
     | VaultUpdatePreferencesMessage
     | EntriesListMessage
     | EntriesCreateMessage
     | EntriesUpdateMessage
     | EntriesDeleteMessage
-    | EntriesReorderMessage;
+    | EntriesReorderMessage
+    | EntriesInsertMessage;
+
+function isVaultExportFile(value: unknown): value is VaultExportFile {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    if (value.formatVersion !== 1 || !isNonEmptyString(value.exportedAt) || !isRecord(value.envelope)) {
+        return false;
+    }
+
+    const envelope = value.envelope;
+    return (
+        envelope.schemaVersion === 1 &&
+        isNonEmptyString(envelope.vaultId) &&
+        isRecord(envelope.kdf) &&
+        isNonEmptyString(envelope.kdf.salt) &&
+        isRecord(envelope.encryption) &&
+        isNonEmptyString(envelope.encryption.nonce) &&
+        isRecord(envelope.integrity) &&
+        isNonEmptyString(envelope.integrity.value) &&
+        isNonEmptyString(envelope.ciphertext) &&
+        isRecord(envelope.meta)
+    );
+}
 
 export function isErrorCode(value: unknown): value is ErrorCode {
     return typeof value === "string" && (ERROR_CODES as readonly string[]).includes(value);
@@ -279,6 +309,22 @@ export function isVaultUpdatePreferencesMessage(value: unknown): value is VaultU
     );
 }
 
+export function isVaultExportMessage(value: unknown): value is VaultExportMessage {
+    return isBackgroundRoutedEnvelope(value) && value.type === "vault/export" && isRecord(value.payload) && hasOnlyKeys(value.payload, []);
+}
+
+export function isVaultImportMessage(value: unknown): value is VaultImportMessage {
+    return (
+        isBackgroundRoutedEnvelope(value) &&
+        value.type === "vault/import" &&
+        isRecord(value.payload) &&
+        hasOnlyKeys(value.payload, ["file", "masterPassword", "mode"]) &&
+        isVaultExportFile(value.payload.file) &&
+        isNonEmptyString(value.payload.masterPassword) &&
+        (value.payload.mode === "replace" || value.payload.mode === "merge")
+    );
+}
+
 export function isEntriesListMessage(value: unknown): value is EntriesListMessage {
     return isBackgroundRoutedEnvelope(value) && value.type === "entries/list" && isListEntriesPayload(value.payload);
 }
@@ -309,6 +355,8 @@ export function isBackgroundMessage(value: unknown): value is RoutedBackgroundMe
         isVaultCreateMessage(value) ||
         isVaultUnlockMessage(value) ||
         isVaultLockMessage(value) ||
+        isVaultExportMessage(value) ||
+        isVaultImportMessage(value) ||
         isVaultUpdatePreferencesMessage(value) ||
         isEntriesListMessage(value) ||
         isEntriesCreateMessage(value) ||

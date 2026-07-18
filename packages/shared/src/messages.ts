@@ -1,3 +1,5 @@
+import type { VaultExportFile } from "./vault";
+
 export type MessageTarget = "background" | "popup" | "options" | "content-script";
 
 export interface MessageEnvelope<TType extends string, TPayload> {
@@ -28,6 +30,16 @@ export interface CreateVaultPayload {
 
 export interface LockVaultPayload {
     reason: "manual" | "timeout" | "restart";
+}
+
+export interface ExportVaultPayload {
+    readonly [key: string]: never;
+}
+
+export interface ImportVaultPayload {
+    file: VaultExportFile;
+    masterPassword: string;
+    mode: "replace" | "merge";
 }
 
 export interface ListEntriesPayload {
@@ -96,6 +108,8 @@ export type VaultGetStatusMessage = MessageEnvelope<"vault/getStatus", EmptyPayl
 export type VaultCreateMessage = MessageEnvelope<"vault/create", CreateVaultPayload>;
 export type VaultUnlockMessage = MessageEnvelope<"vault/unlock", UnlockVaultPayload>;
 export type VaultLockMessage = MessageEnvelope<"vault/lock", LockVaultPayload>;
+export type VaultExportMessage = MessageEnvelope<"vault/export", ExportVaultPayload>;
+export type VaultImportMessage = MessageEnvelope<"vault/import", ImportVaultPayload>;
 export type VaultUpdatePreferencesMessage = MessageEnvelope<"vault/updatePreferences", VaultPreferencesUpdatePayload>;
 export type EntriesListMessage = MessageEnvelope<"entries/list", ListEntriesPayload>;
 export type EntriesCreateMessage = MessageEnvelope<"entries/create", CreateEntryPayload>;
@@ -111,6 +125,8 @@ export type BackgroundMessage =
     | VaultCreateMessage
     | VaultUnlockMessage
     | VaultLockMessage
+    | VaultExportMessage
+    | VaultImportMessage
     | VaultUpdatePreferencesMessage
     | EntriesListMessage
     | EntriesCreateMessage

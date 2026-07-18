@@ -52,6 +52,31 @@ function createVaultLifecycle(): VaultLifecycle {
         async updatePreferences() {
             return { ok: true, hasVault: true, locked: false };
         },
+        async exportVaultFile() {
+            return {
+                ok: true,
+                file: {
+                    formatVersion: 1,
+                    exportedAt: "2026-07-16T00:00:00.000Z",
+                    envelope: {
+                        schemaVersion: 1,
+                        vaultId: "vault-1",
+                        kdf: { name: "pbkdf2", salt: "salt", iterations: 10 },
+                        encryption: { algorithm: "AES-GCM", nonce: "nonce" },
+                        ciphertext: "ciphertext",
+                        integrity: { method: "hmac", value: "tag" },
+                        meta: {
+                            createdAt: "2026-07-16T00:00:00.000Z",
+                            updatedAt: "2026-07-16T00:00:00.000Z",
+                            syncProvider: null
+                        }
+                    }
+                }
+            };
+        },
+        async importVaultFile(_file, _masterPassword, mode) {
+            return { ok: true, mode, entryCount: 1 };
+        },
         async listEntries() {
             return { ok: true, entries: [] };
         },

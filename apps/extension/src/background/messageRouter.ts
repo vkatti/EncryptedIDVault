@@ -1,4 +1,4 @@
-import type { BackgroundMessage, VaultEntry, VaultGetStatusMessage, VaultPreferences } from "@encrypted-id-vault/shared";
+import type { BackgroundMessage, VaultEntry, VaultExportFile, VaultGetStatusMessage, VaultPreferences } from "@encrypted-id-vault/shared";
 
 import type { VaultLifecycle } from "./vaultLifecycle";
 import { insertEntryById, type InsertEntryByIdResult } from "./insertionEngine";
@@ -26,6 +26,15 @@ export type BackgroundResponse =
     | {
         ok: true;
         preferences: VaultPreferences | null;
+    }
+    | {
+        ok: true;
+        file: VaultExportFile;
+    }
+    | {
+        ok: true;
+        mode: "replace" | "merge";
+        entryCount: number;
     }
     | {
         ok: true;
@@ -59,7 +68,9 @@ export type BackgroundResponse =
         | "ERR_INSERT_NO_FOCUSED_FIELD"
         | "ERR_INSERT_UNSUPPORTED_ELEMENT"
         | "ERR_INSERT_DOMAIN_NOT_ALLOWED"
-        | "ERR_INSERT_CLIPBOARD_UNAVAILABLE";
+        | "ERR_INSERT_CLIPBOARD_UNAVAILABLE"
+        | "ERR_IMPORT_SCHEMA_UNSUPPORTED"
+        | "ERR_VAULT_CORRUPT";
     };
 
 async function applyLifecycleResult(
@@ -103,6 +114,30 @@ export async function routeBackgroundMessage(
             return applyLifecycleResult(await vaultLifecycle.unlockVault(message.payload.masterPassword), runtimeState);
         case "vault/lock":
             return applyLifecycleResult(await vaultLifecycle.lockVault(), runtimeState);
+        case "vault/export": {
+            const result = await vaultLifecycle.exportVaultFile();
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            return { ok: true, file: result.file };
+        }
+        case "vault/import": {
+            const result = await vaultLifecycle.importVaultFile(message.payload.file, message.payload.masterPassword, message.payload.mode);
+
+            if (!result.ok) {
+                return { ok: false, error: result.error };
+            }
+
+            const status = await vaultLifecycle.initialize();
+            runtimeState.hasVault = status.hasVault;
+            runtimeState.locked = status.locked;
+            runtimeState.lastUnlockedAt = status.lastUnlockedAt;
+            runtimeState.preferences = vaultLifecycle.getStatus().preferences;
+
+            return { ok: true, mode: result.mode, entryCount: result.entryCount };
+        }
         case "vault/updatePreferences": {
             const result = await vaultLifecycle.updatePreferences(message.payload);
 

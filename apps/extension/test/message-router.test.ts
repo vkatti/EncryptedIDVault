@@ -51,6 +51,31 @@ function createVaultLifecycle(overrides?: Partial<VaultLifecycle>): VaultLifecyc
         async updatePreferences() {
             return { ok: true, hasVault: true, locked: false };
         },
+        async exportVaultFile() {
+            return {
+                ok: true,
+                file: {
+                    formatVersion: 1,
+                    exportedAt: "2026-07-16T00:00:00.000Z",
+                    envelope: {
+                        schemaVersion: 1,
+                        vaultId: "vault-1",
+                        kdf: { name: "pbkdf2", salt: "salt", iterations: 10 },
+                        encryption: { algorithm: "AES-GCM", nonce: "nonce" },
+                        ciphertext: "ciphertext",
+                        integrity: { method: "hmac", value: "tag" },
+                        meta: {
+                            createdAt: "2026-07-16T00:00:00.000Z",
+                            updatedAt: "2026-07-16T00:00:00.000Z",
+                            syncProvider: null
+                        }
+                    }
+                }
+            };
+        },
+        async importVaultFile(_file, _masterPassword, mode) {
+            return { ok: true, mode, entryCount: 1 };
+        },
         async listEntries() {
             return { ok: true, entries: [] };
         },
@@ -178,6 +203,55 @@ test("routeBackgroundMessage mutates lock state for vault/create, vault/unlock a
 
     assert.equal(lockResult.ok, true);
     assert.equal(runtimeState.locked, true);
+});
+
+test("routeBackgroundMessage routes vault/export and vault/import", async () => {
+    const runtimeState = createRuntimeState();
+    const vaultLifecycle = createVaultLifecycle();
+
+    const exportMessage = {
+        id: "message-export",
+        type: "vault/export",
+        source: "popup",
+        target: "background",
+        payload: {}
+    } satisfies BackgroundMessage;
+
+    const exportResult = await routeBackgroundMessage(exportMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    assert.equal(exportResult.ok, true);
+    let exportedFile: Extract<typeof exportResult, { ok: true; file: unknown }>["file"] | null = null;
+    if ("file" in exportResult) {
+        assert.equal(exportResult.file.formatVersion, 1);
+        exportedFile = exportResult.file;
+    } else {
+        assert.fail("Expected vault export response");
+    }
+
+    if (!exportedFile) {
+        assert.fail("Missing exported file payload");
+    }
+
+    const importMessage = {
+        id: "message-import",
+        type: "vault/import",
+        source: "popup",
+        target: "background",
+        payload: {
+            file: exportedFile,
+            masterPassword: "demo-password",
+            mode: "replace"
+        }
+    } satisfies BackgroundMessage;
+
+    const importResult = await routeBackgroundMessage(importMessage, runtimeState, createStatusMessage, vaultLifecycle);
+    assert.equal(importResult.ok, true);
+    if ("mode" in importResult) {
+        assert.equal(importResult.mode, "replace");
+        assert.equal(importResult.entryCount, 1);
+        return;
+    }
+
+    assert.fail("Expected vault import response");
 });
 
 test("routeBackgroundMessage routes entries/list responses", async () => {

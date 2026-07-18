@@ -331,6 +331,12 @@ export function OptionsPage() {
         void loadEntries();
     }, [loadEntries]);
 
+    React.useEffect(() => {
+        if (status.locked && activeTab !== "lifecycle") {
+            setActiveTab("lifecycle");
+        }
+    }, [activeTab, status.locked]);
+
     const runAction = React.useCallback(async (action: Exclude<Action, "vault/getStatus">) => {
         setBusy(true);
         const payload = action === "vault/lock" ? { reason: "manual" } : { masterPassword };
@@ -656,6 +662,10 @@ export function OptionsPage() {
                     color: #fff;
                     border-color: var(--ink);
                 }
+                .tab:disabled {
+                    opacity: 0.45;
+                    cursor: not-allowed;
+                }
                 .card {
                     border: 1px solid var(--line);
                     border-radius: 16px;
@@ -787,7 +797,13 @@ export function OptionsPage() {
             </section>
 
             <nav className="tabs">
-                <button type="button" className={`tab ${activeTab === "entry" ? "active" : ""}`} onClick={() => setActiveTab("entry")}>
+                <button
+                    type="button"
+                    className={`tab ${activeTab === "entry" ? "active" : ""}`}
+                    onClick={() => setActiveTab("entry")}
+                    disabled={status.locked}
+                    title={status.locked ? "Unlock vault from Vault lifecycle to access this tab" : "Entry manager"}
+                >
                     <Icon path={ICONS.entry} title="Entry" />
                     Entry manager
                 </button>
@@ -795,11 +811,23 @@ export function OptionsPage() {
                     <Icon path={ICONS.lifecycle} title="Lifecycle" />
                     Vault lifecycle
                 </button>
-                <button type="button" className={`tab ${activeTab === "preferences" ? "active" : ""}`} onClick={() => setActiveTab("preferences")}>
+                <button
+                    type="button"
+                    className={`tab ${activeTab === "preferences" ? "active" : ""}`}
+                    onClick={() => setActiveTab("preferences")}
+                    disabled={status.locked}
+                    title={status.locked ? "Unlock vault from Vault lifecycle to access this tab" : "Preferences"}
+                >
                     <Icon path={ICONS.preferences} title="Preferences" />
                     Preferences
                 </button>
-                <button type="button" className={`tab ${activeTab === "backup" ? "active" : ""}`} onClick={() => setActiveTab("backup")}>
+                <button
+                    type="button"
+                    className={`tab ${activeTab === "backup" ? "active" : ""}`}
+                    onClick={() => setActiveTab("backup")}
+                    disabled={status.locked}
+                    title={status.locked ? "Unlock vault from Vault lifecycle to access this tab" : "Backup and restore"}
+                >
                     <Icon path={ICONS.backup} title="Backup" />
                     Backup and restore
                 </button>

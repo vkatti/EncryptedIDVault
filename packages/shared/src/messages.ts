@@ -96,32 +96,6 @@ export interface SyncProviderPayload {
     provider: "drive" | "dropbox";
 }
 
-export type BillingPlan = "pro-monthly" | "pro-yearly" | "lifetime";
-
-export type EntitlementTier = "free" | "pro" | "lifetime";
-
-export type EntitlementState = "active" | "grace" | "expired" | "unknown";
-
-export interface BillingLinkAccountPayload {
-    email: string;
-}
-
-export interface BillingStartCheckoutPayload {
-    plan: BillingPlan;
-}
-
-export interface BillingGetEntitlementPayload {
-    forceRefresh?: boolean;
-}
-
-export interface SyncSetProviderPayload {
-    provider: "drive" | "dropbox" | null;
-}
-
-export interface SyncRequestPayload {
-    action: "push" | "pull";
-}
-
 export interface VaultPreferencesUpdatePayload {
     autoLockMinutes?: number;
     defaultInsertMode?: "insert" | "copy";
@@ -145,11 +119,6 @@ export type EntriesReorderMessage = MessageEnvelope<"entries/reorder", ReorderEn
 export type EntriesInsertMessage = MessageEnvelope<"entries/insert", InsertEntryPayload>;
 export type InsertTargetMessage = MessageEnvelope<"insert/target", InsertTargetPayload>;
 export type SyncConnectProviderMessage = MessageEnvelope<"sync/connectProvider", SyncProviderPayload>;
-export type BillingLinkAccountMessage = MessageEnvelope<"billing/linkAccount", BillingLinkAccountPayload>;
-export type BillingStartCheckoutMessage = MessageEnvelope<"billing/startCheckout", BillingStartCheckoutPayload>;
-export type BillingGetEntitlementMessage = MessageEnvelope<"billing/getEntitlement", BillingGetEntitlementPayload>;
-export type SyncSetProviderMessage = MessageEnvelope<"sync/setProvider", SyncSetProviderPayload>;
-export type SyncRequestMessage = MessageEnvelope<"sync/request", SyncRequestPayload>;
 
 export type BackgroundMessage =
     | VaultGetStatusMessage
@@ -165,10 +134,5 @@ export type BackgroundMessage =
     | EntriesDeleteMessage
     | EntriesReorderMessage
     | EntriesInsertMessage
-    | BillingLinkAccountMessage
-    | BillingStartCheckoutMessage
-    | BillingGetEntitlementMessage
-    | SyncSetProviderMessage
-    | SyncRequestMessage
     | InsertTargetMessage
     | SyncConnectProviderMessage;

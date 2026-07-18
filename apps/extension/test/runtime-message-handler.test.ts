@@ -4,7 +4,6 @@ import test from "node:test";
 import type { VaultGetStatusMessage } from "@encrypted-id-vault/shared";
 
 import { handleRuntimeMessage } from "../src/background/runtimeMessageHandler";
-import type { BillingLifecycle } from "../src/background/billingLifecycle";
 import type { RuntimeStateSnapshot } from "../src/background/messageRouter";
 import type { VaultLifecycle } from "../src/background/vaultLifecycle";
 
@@ -138,43 +137,6 @@ function createVaultLifecycle(): VaultLifecycle {
     };
 }
 
-function createBillingLifecycle(): BillingLifecycle {
-    const snapshot = {
-        accountId: null,
-        tier: "free" as const,
-        state: "active" as const,
-        expiresAt: null,
-        checkedAt: null,
-        source: "default" as const,
-        syncProvider: null,
-        syncEnabled: false
-    };
-
-    return {
-        async initialize() {
-            return undefined;
-        },
-        getSnapshot() {
-            return snapshot;
-        },
-        async linkAccount() {
-            return { ok: true, value: { accountId: "acct_123" } };
-        },
-        async startCheckout() {
-            return { ok: true, value: { checkoutUrl: "https://billing.example.test/checkout" } };
-        },
-        async getEntitlement() {
-            return { ok: true, value: snapshot };
-        },
-        async setSyncProvider(provider) {
-            return { ok: true, value: { provider } };
-        },
-        async requestSync(action) {
-            return { ok: false, error: "ERR_SYNC_REQUIRES_PRO" };
-        }
-    };
-}
-
 test("handleRuntimeMessage rejects invalid envelopes without mutating runtime state", async () => {
     const runtimeState = createRuntimeState();
     const result = await handleRuntimeMessage(
@@ -182,7 +144,6 @@ test("handleRuntimeMessage rejects invalid envelopes without mutating runtime st
         runtimeState,
         createStatusMessage,
         createVaultLifecycle(),
-        createBillingLifecycle(),
         "2026-07-16T00:02:00.000Z"
     );
 
@@ -204,7 +165,6 @@ test("handleRuntimeMessage updates lastMessageAt and routes valid unlock message
         runtimeState,
         createStatusMessage,
         createVaultLifecycle(),
-        createBillingLifecycle(),
         "2026-07-16T00:03:00.000Z"
     );
 
@@ -226,7 +186,6 @@ test("handleRuntimeMessage routes valid getStatus messages", async () => {
         runtimeState,
         createStatusMessage,
         createVaultLifecycle(),
-        createBillingLifecycle(),
         "2026-07-16T00:04:00.000Z"
     );
 
@@ -256,7 +215,6 @@ test("handleRuntimeMessage routes valid entries/insert messages", async () => {
         runtimeState,
         createStatusMessage,
         createVaultLifecycle(),
-        createBillingLifecycle(),
         "2026-07-16T00:05:00.000Z",
         async () => ({ ok: true, insertedEntryId: "entry-1", insertionMode: "insert" })
     );

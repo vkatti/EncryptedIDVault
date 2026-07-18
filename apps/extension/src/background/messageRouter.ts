@@ -1,15 +1,7 @@
-import type {
-    BackgroundMessage,
-    BillingPlan,
-    VaultEntry,
-    VaultExportFile,
-    VaultGetStatusMessage,
-    VaultPreferences
-} from "@encrypted-id-vault/shared";
+import type { BackgroundMessage, VaultEntry, VaultExportFile, VaultGetStatusMessage, VaultPreferences } from "@encrypted-id-vault/shared";
 
 import type { VaultLifecycle } from "./vaultLifecycle";
 import { insertEntryById, type InsertEntryByIdResult } from "./insertionEngine";
-import type { BillingLifecycle } from "./billingLifecycle";
 
 export type RuntimeStateSnapshot = {
     installedAt: string | null;
@@ -62,36 +54,6 @@ export type BackgroundResponse =
         insertionMode: "insert" | "clipboard";
     }
     | {
-        ok: true;
-        accountId: string;
-    }
-    | {
-        ok: true;
-        checkoutUrl: string;
-    }
-    | {
-        ok: true;
-        entitlement: {
-            accountId: string | null;
-            tier: "free" | "pro" | "lifetime";
-            state: "active" | "grace" | "expired" | "unknown";
-            expiresAt: string | null;
-            checkedAt: string | null;
-            source: "network" | "cache" | "default";
-            syncProvider: "drive" | "dropbox" | null;
-            syncEnabled: boolean;
-        };
-    }
-    | {
-        ok: true;
-        provider: "drive" | "dropbox" | null;
-    }
-    | {
-        ok: true;
-        syncAction: "push" | "pull";
-        syncProvider: "drive" | "dropbox";
-    }
-    | {
         ok: false;
         error:
         | "ERR_UNHANDLED_MESSAGE"
@@ -108,9 +70,7 @@ export type BackgroundResponse =
         | "ERR_INSERT_DOMAIN_NOT_ALLOWED"
         | "ERR_INSERT_CLIPBOARD_UNAVAILABLE"
         | "ERR_IMPORT_SCHEMA_UNSUPPORTED"
-        | "ERR_VAULT_CORRUPT"
-        | "ERR_BILLING_ENTITLEMENT_UNKNOWN"
-        | "ERR_SYNC_REQUIRES_PRO";
+        | "ERR_VAULT_CORRUPT";
     };
 
 async function applyLifecycleResult(
@@ -131,7 +91,6 @@ export async function routeBackgroundMessage(
     runtimeState: RuntimeStateSnapshot,
     createStatusMessage: () => VaultGetStatusMessage,
     vaultLifecycle: VaultLifecycle,
-    billingLifecycle: BillingLifecycle,
     insertEntry: typeof insertEntryById = insertEntryById
 ): Promise<BackgroundResponse> {
     switch (message.type) {
@@ -252,55 +211,6 @@ export async function routeBackgroundMessage(
                 ok: true,
                 insertedEntryId: result.insertedEntryId,
                 insertionMode: result.insertionMode
-            };
-        }
-        case "billing/linkAccount": {
-            const result = await billingLifecycle.linkAccount(message.payload.email);
-
-            if (!result.ok) {
-                return { ok: false, error: result.error };
-            }
-
-            return { ok: true, accountId: result.value.accountId };
-        }
-        case "billing/startCheckout": {
-            const result = await billingLifecycle.startCheckout(message.payload.plan as BillingPlan);
-
-            if (!result.ok) {
-                return { ok: false, error: result.error };
-            }
-
-            return { ok: true, checkoutUrl: result.value.checkoutUrl };
-        }
-        case "billing/getEntitlement": {
-            const result = await billingLifecycle.getEntitlement(message.payload.forceRefresh);
-
-            if (!result.ok) {
-                return { ok: false, error: result.error };
-            }
-
-            return { ok: true, entitlement: result.value };
-        }
-        case "sync/setProvider": {
-            const result = await billingLifecycle.setSyncProvider(message.payload.provider);
-
-            if (!result.ok) {
-                return { ok: false, error: result.error };
-            }
-
-            return { ok: true, provider: result.value.provider };
-        }
-        case "sync/request": {
-            const result = await billingLifecycle.requestSync(message.payload.action);
-
-            if (!result.ok) {
-                return { ok: false, error: result.error };
-            }
-
-            return {
-                ok: true,
-                syncAction: result.value.action,
-                syncProvider: result.value.provider
             };
         }
         default:

@@ -352,6 +352,16 @@ export function OptionsPage() {
     }, [loadEntries]);
 
     React.useEffect(() => {
+        const statusTimer = window.setInterval(() => {
+            void refreshStatus();
+        }, 3000);
+
+        return () => {
+            window.clearInterval(statusTimer);
+        };
+    }, [refreshStatus]);
+
+    React.useEffect(() => {
         const timer = window.setInterval(() => {
             setNowMs(Date.now());
         }, 1000);
@@ -402,9 +412,16 @@ export function OptionsPage() {
 
     const savePreferences = React.useCallback(async () => {
         setBusy(true);
+        setSummary(null);
         const response = await savePreferencesMessage(preferences);
 
         if (!response.ok) {
+            if (response.error === "ERR_VAULT_LOCKED") {
+                setError("Vault is locked. Unlock it from Vault lifecycle and try again.");
+                await refreshStatus();
+                setBusy(false);
+                return;
+            }
             setError(response.error ?? "Unable to save preferences");
             setBusy(false);
             return;

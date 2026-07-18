@@ -220,6 +220,17 @@ function LockIcon(props: { title: string }) {
     );
 }
 
+function UnlockIcon(props: { title: string }) {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-label={props.title} role="img" focusable="false">
+            <path
+                d="M17 8h-1V6a4 4 0 10-8 0h2a2 2 0 114 0v2H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2v-8a2 2 0 00-2-2zm-5 9a1.5 1.5 0 111.5-1.5A1.5 1.5 0 0112 17z"
+                fill="currentColor"
+            />
+        </svg>
+    );
+}
+
 export function Popup() {
     const [status, setStatus] = React.useState<PopupStatus>({
         installedAt: null,
@@ -631,6 +642,21 @@ export function Popup() {
                     text-align: center;
                     font-size: 1rem;
                 }
+                .unlock-form {
+                    position: relative;
+                    z-index: 1;
+                    width: min(320px, calc(100% - 28px));
+                    display: grid;
+                    gap: 10px;
+                    justify-items: center;
+                }
+                .unlock-button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    border-radius: 999px;
+                    padding: 7px 12px;
+                }
                 .entry-pill-grid {
                     display: flex;
                     gap: 8px;
@@ -820,20 +846,31 @@ export function Popup() {
                             <div className="lock-bg" aria-hidden="true">
                                 <LockIcon title="Locked" />
                             </div>
-                            <input
-                                className="unlock-input"
-                                type="password"
-                                value={masterPassword}
-                                minLength={8}
-                                onChange={(event) => setMasterPassword(event.target.value)}
-                                onKeyDown={(event) => {
-                                    if (event.key === "Enter" && !busy && masterPassword.trim().length > 0) {
-                                        event.preventDefault();
-                                        void runAction("vault/unlock");
-                                    }
-                                }}
-                                placeholder="Enter master password"
-                            />
+                            <div className="unlock-form">
+                                <input
+                                    className="unlock-input"
+                                    type="password"
+                                    value={masterPassword}
+                                    minLength={8}
+                                    onChange={(event) => setMasterPassword(event.target.value)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter" && !busy && masterPassword.trim().length > 0) {
+                                            event.preventDefault();
+                                            void runAction("vault/unlock");
+                                        }
+                                    }}
+                                    placeholder="Enter master password"
+                                />
+                                <button
+                                    type="button"
+                                    className="unlock-button"
+                                    disabled={busy || masterPassword.trim().length === 0}
+                                    onClick={() => void runAction("vault/unlock")}
+                                >
+                                    <UnlockIcon title="Unlock" />
+                                    Unlock
+                                </button>
+                            </div>
                         </div>
                     </>
                 ) : (

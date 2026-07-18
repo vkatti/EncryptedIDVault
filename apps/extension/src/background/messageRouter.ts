@@ -200,6 +200,7 @@ export async function routeBackgroundMessage(
             const result = await insertEntry({
                 entryId: message.payload.entryId,
                 fallbackToClipboard: message.payload.fallbackToClipboard,
+                tabId: message.payload.tabId,
                 vaultLifecycle
             });
 

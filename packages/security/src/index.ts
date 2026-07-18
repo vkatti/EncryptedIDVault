@@ -35,7 +35,7 @@ const ENTRY_UPDATE_KEYS = ["entryId", "label", "value", "category", "notes", "fa
 const ENTRY_LIST_KEYS = ["query", "favoritesOnly"] as const;
 const ENTRY_DELETE_KEYS = ["entryId"] as const;
 const ENTRY_REORDER_KEYS = ["entryId", "targetIndex"] as const;
-const ENTRY_INSERT_KEYS = ["entryId", "fallbackToClipboard"] as const;
+const ENTRY_INSERT_KEYS = ["entryId", "fallbackToClipboard", "tabId"] as const;
 const INSERT_TARGET_KEYS = ["entryId", "value", "domainAllowlist", "fallbackToClipboard", "frameId"] as const;
 
 type RoutedBackgroundMessage =
@@ -223,7 +223,7 @@ function isInsertEntryPayload(payload: unknown): payload is InsertEntryPayload {
         return false;
     }
 
-    return isNonEmptyString(payload.entryId) && isOptionalBoolean(payload.fallbackToClipboard);
+    return isNonEmptyString(payload.entryId) && isOptionalBoolean(payload.fallbackToClipboard) && isOptionalNumber(payload.tabId);
 }
 
 export function isInsertTargetMessage(value: unknown): value is InsertTargetMessage {

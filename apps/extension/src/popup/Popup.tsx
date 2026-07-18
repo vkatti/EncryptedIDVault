@@ -178,7 +178,7 @@ async function reorderEntryMessage(payload: { entryId: string; targetIndex: numb
     )) as EntryMutationResponse;
 }
 
-async function insertEntryMessage(payload: { entryId: string }): Promise<InsertResponse> {
+async function insertEntryMessage(payload: { entryId: string; tabId?: number }): Promise<InsertResponse> {
     return (await chrome.runtime.sendMessage(
         createMessageEnvelope({
             id: crypto.randomUUID(),
@@ -188,6 +188,12 @@ async function insertEntryMessage(payload: { entryId: string }): Promise<InsertR
             payload
         })
     )) as InsertResponse;
+}
+
+async function getActiveTabId(): Promise<number | undefined> {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const tabId = tabs[0]?.id;
+    return typeof tabId === "number" ? tabId : undefined;
 }
 
 export function isVaultExportFile(value: unknown): value is VaultExportFile {
@@ -398,7 +404,8 @@ export function Popup() {
 
     const insertEntry = React.useCallback(async (entryId: string) => {
         setBusy(true);
-        const response = await insertEntryMessage({ entryId });
+        const tabId = await getActiveTabId();
+        const response = await insertEntryMessage({ entryId, tabId });
 
         if (!response.ok) {
             setError(response.error ?? "Unable to insert entry");

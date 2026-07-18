@@ -82,6 +82,7 @@ export interface ReorderEntryPayload {
 export interface InsertEntryPayload {
     entryId: string;
     fallbackToClipboard?: boolean;
+    tabId?: number;
 }
 
 export interface InsertTargetPayload {

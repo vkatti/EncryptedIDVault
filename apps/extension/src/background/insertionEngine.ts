@@ -49,15 +49,13 @@ export async function rememberSelectedEntryId(entryId: string): Promise<void> {
     await chrome.storage.session.set({ [SELECTED_ENTRY_KEY]: entryId });
 }
 
-async function sendInsertMessageToActiveTab(entry: VaultEntry, fallbackToClipboard?: boolean, frameId?: number): Promise<ContentScriptInsertResponse | null> {
-    // Prefer the current browser window, but fall back to the last focused window
-    // because popup actions can make the popup window "current" with no active tab.
-    const activeTabsInCurrentWindow = await chrome.tabs.query({ active: true, currentWindow: true });
-    const activeTab = activeTabsInCurrentWindow[0]
-        ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]
-        ?? (await chrome.tabs.query({ active: true }))[0];
+async function sendInsertMessageToActiveTab(entry: VaultEntry, fallbackToClipboard?: boolean, frameId?: number, explicitTabId?: number): Promise<ContentScriptInsertResponse | null> {
+    const targetTabId = explicitTabId
+        ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id
+        ?? (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.id
+        ?? (await chrome.tabs.query({ active: true }))[0]?.id;
 
-    if (!activeTab?.id) {
+    if (!targetTabId) {
         return null;
     }
 
@@ -77,8 +75,8 @@ async function sendInsertMessageToActiveTab(entry: VaultEntry, fallbackToClipboa
 
     try {
         const response = (frameId === undefined
-            ? await chrome.tabs.sendMessage(activeTab.id, message)
-            : await chrome.tabs.sendMessage(activeTab.id, message, { frameId })) as ContentScriptInsertResponse | undefined;
+            ? await chrome.tabs.sendMessage(targetTabId, message)
+            : await chrome.tabs.sendMessage(targetTabId, message, { frameId })) as ContentScriptInsertResponse | undefined;
         return response ?? null;
     } catch {
         return null;
@@ -89,6 +87,7 @@ export async function insertEntryById(params: {
     entryId: string;
     fallbackToClipboard?: boolean;
     frameId?: number;
+    tabId?: number;
     vaultLifecycle: VaultLifecycle;
 }): Promise<InsertEntryByIdResult> {
     await rememberSelectedEntryId(params.entryId);
@@ -111,7 +110,7 @@ export async function insertEntryById(params: {
         return { ok: false, error: "ERR_ENTRY_COPY_DISABLED" };
     }
 
-    const response = await sendInsertMessageToActiveTab(entry, params.fallbackToClipboard, params.frameId);
+    const response = await sendInsertMessageToActiveTab(entry, params.fallbackToClipboard, params.frameId, params.tabId);
     if (!response) {
         return { ok: false, error: "ERR_NO_ACTIVE_TAB" };
     }

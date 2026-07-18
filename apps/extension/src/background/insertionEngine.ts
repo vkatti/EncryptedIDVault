@@ -68,6 +68,21 @@ async function sendInsertMessageToActiveTab(entry: VaultEntry, fallbackToClipboa
         }
     }
 
+    // If active-tab targeting fails (e.g., popup/options page is active),
+    // try recently accessed regular web/file tabs that can host the content script.
+    const recentlyAccessedInsertableTabs = (await chrome.tabs.query({ windowType: "normal" }))
+        .filter((tab) => {
+            const url = tab.url ?? "";
+            return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://");
+        })
+        .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+
+    for (const tab of recentlyAccessedInsertableTabs) {
+        if (typeof tab.id === "number") {
+            targetTabIds.add(tab.id);
+        }
+    }
+
     if (targetTabIds.size === 0) {
         return null;
     }

@@ -56,6 +56,8 @@ type EntryFormState = {
     favorite: boolean;
 };
 
+type OptionsTab = "entry" | "lifecycle" | "preferences" | "backup";
+
 const DEFAULT_PREFERENCES: VaultPreferences = {
     autoLockMinutes: 5,
     defaultInsertMode: "insert",
@@ -136,6 +138,15 @@ async function createEntryMessage(payload: { label: string; value: string; categ
     )) as EntryMutationResponse;
 }
 
+function getEntryMutationErrorMessage(errorCode?: string): string {
+    switch (errorCode) {
+        case "ERR_VAULT_LOCKED":
+            return "Vault is locked. Unlock it from the Vault lifecycle section, then create the entry.";
+        default:
+            return "Unable to create entry. Try again.";
+    }
+}
+
 function downloadVaultFile(file: VaultExportFile): void {
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
     const objectUrl = URL.createObjectURL(blob);
@@ -179,6 +190,7 @@ export function OptionsPage() {
     const [importFileName, setImportFileName] = React.useState<string | null>(null);
     const [newEntry, setNewEntry] = React.useState<EntryFormState>(DEFAULT_ENTRY_FORM);
     const [summary, setSummary] = React.useState<string | null>(null);
+    const [activeTab, setActiveTab] = React.useState<OptionsTab>("entry");
     const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
     const refreshStatus = React.useCallback(async () => {
@@ -316,6 +328,11 @@ export function OptionsPage() {
     }, [importFile, importMode, importPassword, refreshStatus]);
 
     const createEntry = React.useCallback(async () => {
+        if (status.locked) {
+            setError("Vault is locked. Unlock it from the Vault lifecycle section, then create the entry.");
+            return;
+        }
+
         if (newEntry.label.trim().length === 0 || newEntry.value.trim().length === 0 || newEntry.category.trim().length === 0) {
             setError("Label, value, and category are required");
             return;
@@ -331,7 +348,7 @@ export function OptionsPage() {
         });
 
         if (!response.ok) {
-            setError(response.error ?? "Unable to create entry");
+            setError(getEntryMutationErrorMessage(response.error));
             setBusy(false);
             return;
         }
@@ -340,7 +357,7 @@ export function OptionsPage() {
         setSummary("Entry created");
         setNewEntry(DEFAULT_ENTRY_FORM);
         setBusy(false);
-    }, [newEntry]);
+    }, [newEntry, status.locked]);
 
     return (
         <main style={{
@@ -353,178 +370,199 @@ export function OptionsPage() {
             gap: "14px"
         }}>
             <h1 style={{ margin: 0 }}>Encrypted ID Vault Settings</h1>
-            <p style={{ margin: 0, color: "#627d98" }}>Popup is now entries-first. Manage vault settings, backup, and lifecycle here.</p>
+            <p style={{ margin: 0, color: "#627d98" }}>Popup is entries-first. Use these tabs for setup and management.</p>
 
-            <section style={{ border: "1px solid #d7e2ee", borderRadius: 12, padding: 14, background: "#fff" }}>
-                <h2 style={{ marginTop: 0 }}>Vault lifecycle</h2>
-                <p style={{ color: "#627d98" }}>Installed: {status.installedAt ?? "loading..."}</p>
-                <p style={{ color: "#627d98" }}>State: {status.locked ? "locked" : "unlocked"}</p>
-                <p style={{ color: "#627d98" }}>Last unlocked: {status.lastUnlockedAt ?? "never"}</p>
+            <nav style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => setActiveTab("entry")} style={{ background: activeTab === "entry" ? "#0b6e4f" : "#fff", color: activeTab === "entry" ? "#fff" : "#0b6e4f" }}>Entry manager</button>
+                <button type="button" onClick={() => setActiveTab("lifecycle")} style={{ background: activeTab === "lifecycle" ? "#0b6e4f" : "#fff", color: activeTab === "lifecycle" ? "#fff" : "#0b6e4f" }}>Vault lifecycle</button>
+                <button type="button" onClick={() => setActiveTab("preferences")} style={{ background: activeTab === "preferences" ? "#0b6e4f" : "#fff", color: activeTab === "preferences" ? "#fff" : "#0b6e4f" }}>Preferences</button>
+                <button type="button" onClick={() => setActiveTab("backup")} style={{ background: activeTab === "backup" ? "#0b6e4f" : "#fff", color: activeTab === "backup" ? "#fff" : "#0b6e4f" }}>Backup and restore</button>
+            </nav>
 
-                <label style={{ display: "grid", gap: 6, maxWidth: 320, fontWeight: 600 }}>
-                    Master password
-                    <input
-                        type="password"
-                        value={masterPassword}
-                        minLength={8}
-                        onChange={(event) => setMasterPassword(event.target.value)}
-                        placeholder="Enter master password"
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    />
-                </label>
+            {activeTab === "entry" ? (
+                <section style={{ border: "1px solid #d7e2ee", borderRadius: 12, padding: 14, background: "#fff", display: "grid", gap: 8 }}>
+                    <h2 style={{ marginTop: 0 }}>Entry manager</h2>
+                    {status.locked ? <p style={{ margin: 0, color: "#9a3412" }}>Vault is locked. Unlock it from Vault lifecycle tab before creating entries.</p> : null}
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Label
+                        <input
+                            type="text"
+                            value={newEntry.label}
+                            onChange={(event) => setNewEntry((current) => ({ ...current, label: event.target.value }))}
+                            disabled={status.locked}
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        />
+                    </label>
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Value
+                        <input
+                            type="text"
+                            value={newEntry.value}
+                            onChange={(event) => setNewEntry((current) => ({ ...current, value: event.target.value }))}
+                            disabled={status.locked}
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        />
+                    </label>
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Category
+                        <input
+                            type="text"
+                            value={newEntry.category}
+                            onChange={(event) => setNewEntry((current) => ({ ...current, category: event.target.value }))}
+                            disabled={status.locked}
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        />
+                    </label>
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Notes
+                        <input
+                            type="text"
+                            value={newEntry.notes}
+                            onChange={(event) => setNewEntry((current) => ({ ...current, notes: event.target.value }))}
+                            disabled={status.locked}
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        />
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={newEntry.favorite}
+                            onChange={(event) => setNewEntry((current) => ({ ...current, favorite: event.target.checked }))}
+                            disabled={status.locked}
+                        />
+                        Favorite
+                    </label>
+                    <div>
+                        <button type="button" disabled={busy || status.locked} onClick={() => void createEntry()}>Create entry</button>
+                    </div>
+                </section>
+            ) : null}
 
-                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                    <button type="button" disabled={busy} onClick={() => void refreshStatus()}>Refresh status</button>
-                    {!status.hasVault ? (
-                        <button type="button" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>Create vault</button>
-                    ) : null}
-                    {status.hasVault && status.locked ? (
-                        <button type="button" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
-                    ) : null}
-                    {status.hasVault && !status.locked ? (
-                        <button type="button" disabled={busy} onClick={() => void runAction("vault/lock")}>Lock vault</button>
-                    ) : null}
-                </div>
-            </section>
+            {activeTab === "lifecycle" ? (
+                <section style={{ border: "1px solid #d7e2ee", borderRadius: 12, padding: 14, background: "#fff" }}>
+                    <h2 style={{ marginTop: 0 }}>Vault lifecycle</h2>
+                    <p style={{ color: "#627d98" }}>Installed: {status.installedAt ?? "loading..."}</p>
+                    <p style={{ color: "#627d98" }}>State: {status.locked ? "locked" : "unlocked"}</p>
+                    <p style={{ color: "#627d98" }}>Last unlocked: {status.lastUnlockedAt ?? "never"}</p>
 
-            <section style={{ border: "1px solid #d7e2ee", borderRadius: 12, padding: 14, background: "#fff", display: "grid", gap: 8 }}>
-                <h2 style={{ marginTop: 0 }}>Preferences</h2>
-                <label style={{ display: "grid", gap: 4 }}>
-                    Auto-lock minutes
-                    <input
-                        type="number"
-                        min={0}
-                        value={preferences.autoLockMinutes}
-                        onChange={(event) => updatePreference("autoLockMinutes", Number(event.target.value))}
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    />
-                </label>
-                <label style={{ display: "grid", gap: 4 }}>
-                    Default insert mode
-                    <select
-                        value={preferences.defaultInsertMode}
-                        onChange={(event) => updatePreference("defaultInsertMode", event.target.value as VaultPreferences["defaultInsertMode"])}
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    >
-                        <option value="insert">Insert</option>
-                        <option value="copy">Copy</option>
-                    </select>
-                </label>
-                <label>
-                    <input
-                        type="checkbox"
-                        checked={preferences.clipboardWarningEnabled}
-                        onChange={(event) => updatePreference("clipboardWarningEnabled", event.target.checked)}
-                    />
-                    Clipboard warning enabled
-                </label>
-                <label>
-                    <input
-                        type="checkbox"
-                        checked={preferences.telemetryEnabled}
-                        onChange={(event) => updatePreference("telemetryEnabled", event.target.checked)}
-                    />
-                    Telemetry enabled
-                </label>
-                <div>
-                    <button type="button" disabled={busy} onClick={() => void savePreferences()}>Save preferences</button>
-                </div>
-            </section>
+                    <label style={{ display: "grid", gap: 6, maxWidth: 320, fontWeight: 600 }}>
+                        Master password
+                        <input
+                            type="password"
+                            value={masterPassword}
+                            minLength={8}
+                            onChange={(event) => setMasterPassword(event.target.value)}
+                            placeholder="Enter master password"
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        />
+                    </label>
 
-            <section style={{ border: "1px solid #d7e2ee", borderRadius: 12, padding: 14, background: "#fff", display: "grid", gap: 8 }}>
-                <h2 style={{ marginTop: 0 }}>Backup and restore</h2>
-                <div>
-                    <button type="button" disabled={busy} onClick={() => void exportVault()}>Export encrypted vault</button>
-                </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                        <button type="button" disabled={busy} onClick={() => void refreshStatus()}>Refresh status</button>
+                        {!status.hasVault ? (
+                            <button type="button" disabled={busy || masterPassword.trim().length < 8} onClick={() => void runAction("vault/create")}>Create vault</button>
+                        ) : null}
+                        {status.hasVault && status.locked ? (
+                            <button type="button" disabled={busy || masterPassword.trim().length === 0} onClick={() => void runAction("vault/unlock")}>Unlock vault</button>
+                        ) : null}
+                        {status.hasVault && !status.locked ? (
+                            <button type="button" disabled={busy} onClick={() => void runAction("vault/lock")}>Lock vault</button>
+                        ) : null}
+                    </div>
+                </section>
+            ) : null}
 
-                <label style={{ display: "grid", gap: 4 }}>
-                    Import mode
-                    <select
-                        value={importMode}
-                        onChange={(event) => setImportMode(event.target.value as "replace" | "merge")}
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    >
-                        <option value="merge">Merge with current vault</option>
-                        <option value="replace">Replace current vault</option>
-                    </select>
-                </label>
+            {activeTab === "preferences" ? (
+                <section style={{ border: "1px solid #d7e2ee", borderRadius: 12, padding: 14, background: "#fff", display: "grid", gap: 8 }}>
+                    <h2 style={{ marginTop: 0 }}>Preferences</h2>
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Auto-lock minutes
+                        <input
+                            type="number"
+                            min={0}
+                            value={preferences.autoLockMinutes}
+                            onChange={(event) => updatePreference("autoLockMinutes", Number(event.target.value))}
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        />
+                    </label>
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Default insert mode
+                        <select
+                            value={preferences.defaultInsertMode}
+                            onChange={(event) => updatePreference("defaultInsertMode", event.target.value as VaultPreferences["defaultInsertMode"])}
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        >
+                            <option value="insert">Insert</option>
+                            <option value="copy">Copy</option>
+                        </select>
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={preferences.clipboardWarningEnabled}
+                            onChange={(event) => updatePreference("clipboardWarningEnabled", event.target.checked)}
+                        />
+                        Clipboard warning enabled
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={preferences.telemetryEnabled}
+                            onChange={(event) => updatePreference("telemetryEnabled", event.target.checked)}
+                        />
+                        Telemetry enabled
+                    </label>
+                    <div>
+                        <button type="button" disabled={busy} onClick={() => void savePreferences()}>Save preferences</button>
+                    </div>
+                </section>
+            ) : null}
 
-                <label style={{ display: "grid", gap: 4 }}>
-                    Vault file
-                    <input
-                        ref={importFileInputRef}
-                        type="file"
-                        accept=".json,.enc.json,application/json"
-                        onChange={(event) => void selectImportFile(event)}
-                    />
-                </label>
-                {importFileName ? <p style={{ margin: 0, color: "#627d98" }}>Selected file: {importFileName}</p> : null}
+            {activeTab === "backup" ? (
+                <section style={{ border: "1px solid #d7e2ee", borderRadius: 12, padding: 14, background: "#fff", display: "grid", gap: 8 }}>
+                    <h2 style={{ marginTop: 0 }}>Backup and restore</h2>
+                    <div>
+                        <button type="button" disabled={busy} onClick={() => void exportVault()}>Export encrypted vault</button>
+                    </div>
 
-                <label style={{ display: "grid", gap: 4 }}>
-                    Master password for imported vault
-                    <input
-                        type="password"
-                        value={importPassword}
-                        onChange={(event) => setImportPassword(event.target.value)}
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    />
-                </label>
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Import mode
+                        <select
+                            value={importMode}
+                            onChange={(event) => setImportMode(event.target.value as "replace" | "merge")}
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        >
+                            <option value="merge">Merge with current vault</option>
+                            <option value="replace">Replace current vault</option>
+                        </select>
+                    </label>
 
-                <div>
-                    <button type="button" disabled={busy || !importFile || importPassword.trim().length === 0} onClick={() => void importVault()}>Import encrypted vault</button>
-                </div>
-            </section>
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Vault file
+                        <input
+                            ref={importFileInputRef}
+                            type="file"
+                            accept=".json,.enc.json,application/json"
+                            onChange={(event) => void selectImportFile(event)}
+                        />
+                    </label>
+                    {importFileName ? <p style={{ margin: 0, color: "#627d98" }}>Selected file: {importFileName}</p> : null}
 
-            <section style={{ border: "1px solid #d7e2ee", borderRadius: 12, padding: 14, background: "#fff", display: "grid", gap: 8 }}>
-                <h2 style={{ marginTop: 0 }}>Entry manager</h2>
-                <label style={{ display: "grid", gap: 4 }}>
-                    Label
-                    <input
-                        type="text"
-                        value={newEntry.label}
-                        onChange={(event) => setNewEntry((current) => ({ ...current, label: event.target.value }))}
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    />
-                </label>
-                <label style={{ display: "grid", gap: 4 }}>
-                    Value
-                    <input
-                        type="text"
-                        value={newEntry.value}
-                        onChange={(event) => setNewEntry((current) => ({ ...current, value: event.target.value }))}
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    />
-                </label>
-                <label style={{ display: "grid", gap: 4 }}>
-                    Category
-                    <input
-                        type="text"
-                        value={newEntry.category}
-                        onChange={(event) => setNewEntry((current) => ({ ...current, category: event.target.value }))}
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    />
-                </label>
-                <label style={{ display: "grid", gap: 4 }}>
-                    Notes
-                    <input
-                        type="text"
-                        value={newEntry.notes}
-                        onChange={(event) => setNewEntry((current) => ({ ...current, notes: event.target.value }))}
-                        style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
-                    />
-                </label>
-                <label>
-                    <input
-                        type="checkbox"
-                        checked={newEntry.favorite}
-                        onChange={(event) => setNewEntry((current) => ({ ...current, favorite: event.target.checked }))}
-                    />
-                    Favorite
-                </label>
-                <div>
-                    <button type="button" disabled={busy} onClick={() => void createEntry()}>Create entry</button>
-                </div>
-            </section>
+                    <label style={{ display: "grid", gap: 4 }}>
+                        Master password for imported vault
+                        <input
+                            type="password"
+                            value={importPassword}
+                            onChange={(event) => setImportPassword(event.target.value)}
+                            style={{ border: "1px solid #b4c6d8", borderRadius: 8, padding: 8 }}
+                        />
+                    </label>
+
+                    <div>
+                        <button type="button" disabled={busy || !importFile || importPassword.trim().length === 0} onClick={() => void importVault()}>Import encrypted vault</button>
+                    </div>
+                </section>
+            ) : null}
 
             {summary ? <p style={{ margin: 0, color: "#067647" }}>{summary}</p> : null}
             {error ? <p style={{ margin: 0, color: "#b42318" }}>{error}</p> : null}

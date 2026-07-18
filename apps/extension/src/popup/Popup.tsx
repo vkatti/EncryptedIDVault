@@ -281,6 +281,11 @@ export function Popup() {
             setMasterPassword("");
             setError(null);
             await refreshStatus();
+
+            if (action === "vault/create") {
+                void chrome.runtime.openOptionsPage();
+            }
+
             setBusy(false);
         },
         [masterPassword, refreshStatus]

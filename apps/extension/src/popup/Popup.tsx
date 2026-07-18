@@ -23,22 +23,9 @@ type StatusResponse = {
     error?: string;
 };
 
-type PreferencesResponse = {
-    ok: boolean;
-    preferences?: VaultPreferences | null;
-    error?: string;
-};
-
 type EntryListResponse = {
     ok: boolean;
     entries?: VaultEntry[];
-    error?: string;
-};
-
-type EntryMutationResponse = {
-    ok: boolean;
-    entry?: VaultEntry;
-    deletedEntryId?: string;
     error?: string;
 };
 
@@ -49,28 +36,7 @@ type InsertResponse = {
     error?: string;
 };
 
-type VaultExportResponse = {
-    ok: boolean;
-    file?: VaultExportFile;
-    error?: string;
-};
-
-type VaultImportResponse = {
-    ok: boolean;
-    mode?: "replace" | "merge";
-    entryCount?: number;
-    error?: string;
-};
-
 type Action = "vault/getStatus" | "vault/create" | "vault/unlock" | "vault/lock";
-
-type EntryFormState = {
-    label: string;
-    value: string;
-    category: string;
-    notes: string;
-    favorite: boolean;
-};
 
 function getPasswordStrength(password: string): "weak" | "medium" | "strong" {
     const hasUpper = /[A-Z]/.test(password);
@@ -135,50 +101,7 @@ async function listEntriesMessage(payload: { query?: string; favoritesOnly?: boo
     )) as EntryListResponse;
 }
 
-async function updateEntryMessage(payload: {
-    entryId: string;
-    label?: string;
-    value?: string;
-    category?: string;
-    notes?: string;
-    favorite?: boolean;
-}): Promise<EntryMutationResponse> {
-    return (await chrome.runtime.sendMessage(
-        createMessageEnvelope({
-            id: crypto.randomUUID(),
-            type: "entries/update",
-            source: "popup",
-            target: "background",
-            payload
-        })
-    )) as EntryMutationResponse;
-}
-
-async function deleteEntryMessage(payload: { entryId: string }): Promise<EntryMutationResponse> {
-    return (await chrome.runtime.sendMessage(
-        createMessageEnvelope({
-            id: crypto.randomUUID(),
-            type: "entries/delete",
-            source: "popup",
-            target: "background",
-            payload
-        })
-    )) as EntryMutationResponse;
-}
-
-async function reorderEntryMessage(payload: { entryId: string; targetIndex: number }): Promise<EntryMutationResponse> {
-    return (await chrome.runtime.sendMessage(
-        createMessageEnvelope({
-            id: crypto.randomUUID(),
-            type: "entries/reorder",
-            source: "popup",
-            target: "background",
-            payload
-        })
-    )) as EntryMutationResponse;
-}
-
-async function insertEntryMessage(payload: { entryId: string; tabId?: number }): Promise<InsertResponse> {
+async function insertEntryMessage(payload: { entryId: string; tabId?: number; fallbackToClipboard?: boolean }): Promise<InsertResponse> {
     return (await chrome.runtime.sendMessage(
         createMessageEnvelope({
             id: crypto.randomUUID(),
@@ -205,37 +128,6 @@ export function isVaultExportFile(value: unknown): value is VaultExportFile {
     return candidate.formatVersion === 1 && typeof candidate.exportedAt === "string" && typeof candidate.envelope === "object";
 }
 
-async function readImportFile(file: File): Promise<VaultExportFile> {
-    const raw = await file.text();
-    const parsed = JSON.parse(raw) as unknown;
-
-    if (!isVaultExportFile(parsed)) {
-        throw new Error("Invalid export file format");
-    }
-
-    return parsed;
-}
-
-function downloadVaultFile(file: VaultExportFile): void {
-    const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const timestamp = file.exportedAt.replace(/[:.]/g, "-");
-
-    link.href = objectUrl;
-    link.download = `vault-${timestamp}.enc.json`;
-    link.click();
-    URL.revokeObjectURL(objectUrl);
-}
-
-const DEFAULT_ENTRY_FORM: EntryFormState = {
-    label: "",
-    value: "",
-    category: "",
-    notes: "",
-    favorite: false
-};
-
 export function Popup() {
     const [status, setStatus] = React.useState<PopupStatus>({
         installedAt: null,
@@ -247,12 +139,11 @@ export function Popup() {
         preferences: null
     });
     const [error, setError] = React.useState<string | null>(null);
+    const [summary, setSummary] = React.useState<string | null>(null);
     const [masterPassword, setMasterPassword] = React.useState("");
     const [busy, setBusy] = React.useState(false);
     const [entries, setEntries] = React.useState<VaultEntry[]>([]);
     const [entryFilters, setEntryFilters] = React.useState({ query: "", favoritesOnly: false });
-    const [editingEntryId, setEditingEntryId] = React.useState<string | null>(null);
-    const [editingEntry, setEditingEntry] = React.useState<EntryFormState>(DEFAULT_ENTRY_FORM);
     const passwordStrength = getPasswordStrength(masterPassword);
 
     const refreshStatus = React.useCallback(async () => {
@@ -286,6 +177,7 @@ export function Popup() {
 
             setMasterPassword("");
             setError(null);
+            setSummary(null);
             await refreshStatus();
 
             if (action === "vault/create") {
@@ -320,107 +212,31 @@ export function Popup() {
         void loadEntries();
     }, [loadEntries]);
 
-    const startEditingEntry = React.useCallback((entry: VaultEntry) => {
-        setEditingEntryId(entry.id);
-        setEditingEntry({
-            label: entry.label,
-            value: entry.value,
-            category: entry.category,
-            notes: entry.notes ?? "",
-            favorite: entry.favorite
-        });
-    }, []);
-
-    const cancelEditingEntry = React.useCallback(() => {
-        setEditingEntryId(null);
-        setEditingEntry(DEFAULT_ENTRY_FORM);
-    }, []);
-
-    const saveEditedEntry = React.useCallback(async () => {
-        if (!editingEntryId) {
-            return;
-        }
-
-        if (editingEntry.label.trim().length === 0 || editingEntry.value.trim().length === 0 || editingEntry.category.trim().length === 0) {
-            setError("Label, value, and category are required");
-            return;
-        }
-
+    const triggerEntry = React.useCallback(async (entryId: string) => {
         setBusy(true);
-        const response = await updateEntryMessage({
-            entryId: editingEntryId,
-            label: editingEntry.label.trim(),
-            value: editingEntry.value,
-            category: editingEntry.category.trim(),
-            notes: editingEntry.notes.trim() || undefined,
-            favorite: editingEntry.favorite
-        });
 
-        if (!response.ok) {
-            setError(response.error ?? "Unable to update entry");
-            setBusy(false);
-            return;
-        }
-
-        setError(null);
-        cancelEditingEntry();
-        await loadEntries();
-        setBusy(false);
-    }, [cancelEditingEntry, editingEntry, editingEntryId, loadEntries]);
-
-    const deleteEntry = React.useCallback(async (entryId: string) => {
-        setBusy(true);
-        const response = await deleteEntryMessage({ entryId });
-
-        if (!response.ok) {
-            setError(response.error ?? "Unable to delete entry");
-            setBusy(false);
-            return;
-        }
-
-        if (editingEntryId === entryId) {
-            cancelEditingEntry();
-        }
-
-        setError(null);
-        await loadEntries();
-        setBusy(false);
-    }, [cancelEditingEntry, editingEntryId, loadEntries]);
-
-    const moveEntry = React.useCallback(async (entryId: string, targetIndex: number) => {
-        setBusy(true);
-        const response = await reorderEntryMessage({ entryId, targetIndex });
-
-        if (!response.ok) {
-            setError(response.error ?? "Unable to reorder entry");
-            setBusy(false);
-            return;
-        }
-
-        setError(null);
-        await loadEntries();
-        setBusy(false);
-    }, [loadEntries]);
-
-    const insertEntry = React.useCallback(async (entryId: string) => {
-        setBusy(true);
         const tabId = await getActiveTabId();
-        const response = await insertEntryMessage({ entryId, tabId });
+        const preferClipboard = status.preferences?.defaultInsertMode === "copy";
+        const response = await insertEntryMessage({ entryId, tabId, fallbackToClipboard: preferClipboard || undefined });
 
         if (!response.ok) {
-            setError(response.error ?? "Unable to insert entry");
+            setError(response.error ?? "Unable to apply entry");
+            setSummary(null);
             setBusy(false);
             return;
         }
 
         setError(null);
+        setSummary(response.insertionMode === "clipboard" ? "Copied entry value to clipboard" : "Inserted entry value");
         await refreshStatus();
         setBusy(false);
-    }, [refreshStatus]);
+    }, [refreshStatus, status.preferences?.defaultInsertMode]);
 
     const openOptions = React.useCallback(() => {
         void chrome.runtime.openOptionsPage();
     }, []);
+
+    const defaultModeLabel = status.preferences?.defaultInsertMode === "copy" ? "copy" : "insert";
 
     return (
         <main className="popup-shell">
@@ -459,10 +275,6 @@ export function Popup() {
                     margin: 0;
                     font-size: 1rem;
                 }
-                h3 {
-                    margin: 0;
-                    font-size: 0.92rem;
-                }
                 p {
                     margin: 0;
                 }
@@ -489,11 +301,6 @@ export function Popup() {
                     flex-wrap: wrap;
                     align-items: center;
                 }
-                .entry-actions {
-                    display: flex;
-                    gap: 6px;
-                    flex-wrap: wrap;
-                }
                 button {
                     border-radius: 8px;
                     border: 1px solid #0b6e4f;
@@ -516,21 +323,7 @@ export function Popup() {
                     opacity: 0.45;
                     cursor: not-allowed;
                 }
-                .entry {
-                    border: 1px solid #d7e2ee;
-                    border-radius: 10px;
-                    background: #f9fbff;
-                    padding: 10px;
-                    display: grid;
-                    gap: 7px;
-                }
-                .entry-header {
-                    display: flex;
-                    justify-content: space-between;
-                    gap: 8px;
-                    align-items: baseline;
-                }
-                .pill {
+                .status-pill {
                     border: 1px solid #d1e9dd;
                     border-radius: 99px;
                     padding: 2px 8px;
@@ -539,11 +332,50 @@ export function Popup() {
                     font-size: 0.75rem;
                     font-weight: 700;
                 }
+                .entry-pill-grid {
+                    display: flex;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                }
+                .entry-pill {
+                    border-radius: 999px;
+                    border: 1px solid #b7cedf;
+                    background: #f3f8fc;
+                    color: #102a43;
+                    padding: 7px 11px;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 7px;
+                    max-width: 100%;
+                }
+                .entry-pill-label {
+                    font-weight: 700;
+                    max-width: 150px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .entry-pill-preview {
+                    color: #627d98;
+                    font-size: 0.78rem;
+                    max-width: 115px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
                 .alert {
                     border-radius: 8px;
                     border: 1px solid #f5c2c7;
                     background: #fff1f3;
                     color: #842029;
+                    padding: 8px;
+                    font-size: 0.85rem;
+                }
+                .ok {
+                    border-radius: 8px;
+                    border: 1px solid #b7ebc6;
+                    background: #ecfdf3;
+                    color: #067647;
                     padding: 8px;
                     font-size: 0.85rem;
                 }
@@ -558,7 +390,7 @@ export function Popup() {
                     </div>
                 </div>
                 <div className="row">
-                    <span className="pill">{status.locked ? "Locked" : "Unlocked"}</span>
+                    <span className="status-pill">{status.locked ? "Locked" : "Unlocked"}</span>
                     <span className="muted">{status.hasVault ? "Vault ready" : "No vault yet"}</span>
                 </div>
                 {!status.hasVault ? <p className="muted">Create your vault to start storing entries. Advanced settings are in Options.</p> : null}
@@ -614,83 +446,28 @@ export function Popup() {
                         Favorites only
                     </label>
 
-                    <p className="muted">Create new entries from Options to Entry manager.</p>
+                    <p className="muted">Tap a pill to {defaultModeLabel}. Manage entries in Options.</p>
 
-                    <h3>Entry list</h3>
                     {entries.length === 0 ? <p className="muted">No entries yet.</p> : null}
-                    {entries.map((entry, index) => (
-                        <article key={entry.id} className="entry">
-                            <div className="entry-header">
-                                <strong>{entry.label}</strong>
-                                <span className="muted">{entry.category}</span>
-                            </div>
-                            <p className="muted">Preview: {entry.maskedPreview}</p>
-
-                            {editingEntryId === entry.id ? (
-                                <>
-                                    <label>
-                                        Label
-                                        <input
-                                            type="text"
-                                            value={editingEntry.label}
-                                            onChange={(event) => setEditingEntry((current) => ({ ...current, label: event.target.value }))}
-                                        />
-                                    </label>
-                                    <label>
-                                        Value
-                                        <input
-                                            type="text"
-                                            value={editingEntry.value}
-                                            onChange={(event) => setEditingEntry((current) => ({ ...current, value: event.target.value }))}
-                                        />
-                                    </label>
-                                    <label>
-                                        Category
-                                        <input
-                                            type="text"
-                                            value={editingEntry.category}
-                                            onChange={(event) => setEditingEntry((current) => ({ ...current, category: event.target.value }))}
-                                        />
-                                    </label>
-                                    <label>
-                                        Notes
-                                        <input
-                                            type="text"
-                                            value={editingEntry.notes}
-                                            onChange={(event) => setEditingEntry((current) => ({ ...current, notes: event.target.value }))}
-                                        />
-                                    </label>
-                                    <label className="row" style={{ fontWeight: 500 }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={editingEntry.favorite}
-                                            onChange={(event) => setEditingEntry((current) => ({ ...current, favorite: event.target.checked }))}
-                                        />
-                                        Favorite
-                                    </label>
-                                    <div className="entry-actions">
-                                        <button type="button" disabled={busy} onClick={() => void saveEditedEntry()}>Save</button>
-                                        <button type="button" className="secondary" disabled={busy} onClick={cancelEditingEntry}>Cancel</button>
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    {entry.notes ? <p className="muted">Notes: {entry.notes}</p> : null}
-                                    <p className="muted">Favorite: {entry.favorite ? "yes" : "no"}</p>
-                                    <div className="entry-actions">
-                                        <button type="button" className="secondary" disabled={busy} onClick={() => startEditingEntry(entry)}>Edit</button>
-                                        <button type="button" disabled={busy} onClick={() => void insertEntry(entry.id)}>Insert</button>
-                                        <button type="button" className="secondary" disabled={busy || index === 0} onClick={() => void moveEntry(entry.id, index - 1)}>Up</button>
-                                        <button type="button" className="secondary" disabled={busy || index === entries.length - 1} onClick={() => void moveEntry(entry.id, index + 1)}>Down</button>
-                                        <button type="button" className="warn" disabled={busy} onClick={() => void deleteEntry(entry.id)}>Delete</button>
-                                    </div>
-                                </>
-                            )}
-                        </article>
-                    ))}
+                    <div className="entry-pill-grid">
+                        {entries.map((entry) => (
+                            <button
+                                key={entry.id}
+                                type="button"
+                                className="entry-pill"
+                                disabled={busy}
+                                onClick={() => void triggerEntry(entry.id)}
+                                title={`${entry.label} (${entry.category})`}
+                            >
+                                <span className="entry-pill-label">{entry.label}</span>
+                                <span className="entry-pill-preview">{entry.maskedPreview}</span>
+                            </button>
+                        ))}
+                    </div>
                 </section>
             ) : null}
 
+            {summary ? <p className="ok">{summary}</p> : null}
             {error ? <p role="alert" className="alert">{error}</p> : null}
         </main>
     );

@@ -198,6 +198,17 @@ function getRemainingLockSeconds(status: PopupStatus, nowMs: number): number | n
     return Math.max(0, Math.floor((deadlineMs - nowMs) / 1000));
 }
 
+function GearIcon(props: { title: string }) {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-label={props.title} role="img" focusable="false">
+            <path
+                d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.6-.22l-2.39.96a7.1 7.1 0 00-1.63-.94l-.36-2.54a.5.5 0 00-.5-.42h-3.84a.5.5 0 00-.5.42L9.19 5.3c-.57.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 00-.6.22L2.65 8.82a.5.5 0 00.12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.51.4 1.06.71 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.57-.23 1.12-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8a3.5 3.5 0 010 7.5z"
+                fill="currentColor"
+            />
+        </svg>
+    );
+}
+
 export function Popup() {
     const [status, setStatus] = React.useState<PopupStatus>({
         installedAt: null,
@@ -428,7 +439,6 @@ export function Popup() {
         void chrome.runtime.openOptionsPage();
     }, []);
 
-    const defaultModeLabel = status.preferences?.defaultInsertMode === "copy" ? "copy" : "insert";
     const remainingLockSeconds = getRemainingLockSeconds(status, nowMs);
 
     return (
@@ -508,6 +518,14 @@ export function Popup() {
                     background: #fff;
                     color: #0b6e4f;
                 }
+                button.icon-only {
+                    width: 40px;
+                    height: 36px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 0;
+                }
                 button.warn {
                     border-color: #b42318;
                     background: #b42318;
@@ -561,6 +579,23 @@ export function Popup() {
                     text-overflow: ellipsis;
                     white-space: nowrap;
                 }
+                .inline-options-link {
+                    display: inline-flex;
+                    vertical-align: middle;
+                    margin-left: 4px;
+                }
+                .inline-options-link button {
+                    border-radius: 999px;
+                    border: 1px solid #b7cedf;
+                    background: #fff;
+                    color: #0b6e4f;
+                    width: 22px;
+                    height: 22px;
+                    padding: 0;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                }
                 .alert {
                     border-radius: 8px;
                     border: 1px solid #f5c2c7;
@@ -611,7 +646,9 @@ export function Popup() {
                     <h1>Encrypted ID Vault</h1>
                     <div className="row">
                         <button type="button" className="secondary" onClick={() => void refreshStatus()} disabled={busy}>Refresh</button>
-                        <button type="button" className="secondary" onClick={openOptions}>Open settings</button>
+                        <button type="button" className="secondary icon-only" onClick={openOptions} title="Options" aria-label="Options">
+                            <GearIcon title="Options" />
+                        </button>
                     </div>
                 </div>
                 <div className="row">
@@ -736,7 +773,14 @@ export function Popup() {
                         Favorites only
                     </label>
 
-                    <p className="muted">Tap a pill to {defaultModeLabel}. Manage entries in Options.</p>
+                    <p className="muted">
+                        Click to Copy. Manage entries in options
+                        <span className="inline-options-link">
+                            <button type="button" onClick={openOptions} title="Options" aria-label="Options">
+                                <GearIcon title="Options" />
+                            </button>
+                        </span>
+                    </p>
 
                     {entries.length === 0 ? <p className="muted">No entries yet.</p> : null}
                     <div className="entry-pill-grid">

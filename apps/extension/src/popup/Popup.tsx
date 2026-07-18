@@ -1,7 +1,7 @@
 import React from "react";
 
 import { createMessageEnvelope } from "@encrypted-id-vault/security";
-import type { VaultEntry, VaultPreferences } from "@encrypted-id-vault/shared";
+import type { VaultEntry, VaultExportFile, VaultPreferences } from "@encrypted-id-vault/shared";
 
 type PopupStatus = {
     installedAt: string | null;
@@ -46,6 +46,19 @@ type InsertResponse = {
     ok: boolean;
     insertedEntryId?: string;
     insertionMode?: "insert" | "clipboard";
+    error?: string;
+};
+
+type VaultExportResponse = {
+    ok: boolean;
+    file?: VaultExportFile;
+    error?: string;
+};
+
+type VaultImportResponse = {
+    ok: boolean;
+    mode?: "replace" | "merge";
+    entryCount?: number;
     error?: string;
 };
 
@@ -181,6 +194,66 @@ async function insertEntryMessage(payload: { entryId: string }): Promise<InsertR
     )) as InsertResponse;
 }
 
+async function exportVaultMessage(): Promise<VaultExportResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "vault/export",
+            source: "popup",
+            target: "background",
+            payload: {}
+        })
+    )) as VaultExportResponse;
+}
+
+async function importVaultMessage(payload: {
+    file: VaultExportFile;
+    masterPassword: string;
+    mode: "replace" | "merge";
+}): Promise<VaultImportResponse> {
+    return (await chrome.runtime.sendMessage(
+        createMessageEnvelope({
+            id: crypto.randomUUID(),
+            type: "vault/import",
+            source: "popup",
+            target: "background",
+            payload
+        })
+    )) as VaultImportResponse;
+}
+
+function isVaultExportFile(value: unknown): value is VaultExportFile {
+    if (!value || typeof value !== "object") {
+        return false;
+    }
+
+    const candidate = value as Partial<VaultExportFile>;
+    return candidate.formatVersion === 1 && typeof candidate.exportedAt === "string" && typeof candidate.envelope === "object";
+}
+
+async function readImportFile(file: File): Promise<VaultExportFile> {
+    const raw = await file.text();
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (!isVaultExportFile(parsed)) {
+        throw new Error("Invalid export file format");
+    }
+
+    return parsed;
+}
+
+function downloadVaultFile(file: VaultExportFile): void {
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const timestamp = file.exportedAt.replace(/[:.]/g, "-");
+
+    link.href = objectUrl;
+    link.download = `vault-${timestamp}.enc.json`;
+    link.click();
+    URL.revokeObjectURL(objectUrl);
+}
+
 const DEFAULT_PREFERENCES: VaultPreferences = {
     autoLockMinutes: 5,
     defaultInsertMode: "insert",
@@ -216,6 +289,13 @@ export function Popup() {
     const [newEntry, setNewEntry] = React.useState<EntryFormState>(DEFAULT_ENTRY_FORM);
     const [editingEntryId, setEditingEntryId] = React.useState<string | null>(null);
     const [editingEntry, setEditingEntry] = React.useState<EntryFormState>(DEFAULT_ENTRY_FORM);
+    const [importMode, setImportMode] = React.useState<"replace" | "merge">("merge");
+    const [importPassword, setImportPassword] = React.useState("");
+    const [importFile, setImportFile] = React.useState<VaultExportFile | null>(null);
+    const [importFileName, setImportFileName] = React.useState<string | null>(null);
+    const [lastImportSummary, setLastImportSummary] = React.useState<string | null>(null);
+    const [lastExportSummary, setLastExportSummary] = React.useState<string | null>(null);
+    const importFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
     const passwordStrength = getPasswordStrength(masterPassword);
 
@@ -434,6 +514,82 @@ export function Popup() {
         setBusy(false);
     }, [refreshStatus]);
 
+    const exportVault = React.useCallback(async () => {
+        setBusy(true);
+        const response = await exportVaultMessage();
+
+        if (!response.ok || !response.file) {
+            setError(response.error ?? "Unable to export vault");
+            setBusy(false);
+            return;
+        }
+
+        downloadVaultFile(response.file);
+        setLastExportSummary(`Exported encrypted vault at ${response.file.exportedAt}`);
+        setError(null);
+        setBusy(false);
+    }, []);
+
+    const selectImportFile = React.useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const selected = event.target.files?.[0];
+
+        if (!selected) {
+            setImportFile(null);
+            setImportFileName(null);
+            return;
+        }
+
+        try {
+            const parsed = await readImportFile(selected);
+            setImportFile(parsed);
+            setImportFileName(selected.name);
+            setError(null);
+        } catch {
+            setImportFile(null);
+            setImportFileName(null);
+            setError("Selected file is not a valid encrypted vault export");
+        }
+    }, []);
+
+    const importVault = React.useCallback(async () => {
+        if (!importFile) {
+            setError("Select a vault export file before importing");
+            return;
+        }
+
+        if (importPassword.trim().length === 0) {
+            setError("Master password is required for import");
+            return;
+        }
+
+        setBusy(true);
+        const response = await importVaultMessage({
+            file: importFile,
+            masterPassword: importPassword,
+            mode: importMode
+        });
+
+        if (!response.ok) {
+            setError(response.error ?? "Unable to import vault");
+            setBusy(false);
+            return;
+        }
+
+        setError(null);
+        setMasterPassword("");
+        setImportPassword("");
+        setImportFile(null);
+        setImportFileName(null);
+        setLastImportSummary(`Imported ${response.entryCount ?? 0} entries using ${response.mode ?? importMode} mode`);
+        if (importFileInputRef.current) {
+            importFileInputRef.current.value = "";
+        }
+
+        await refreshStatus();
+        await loadEntries();
+        setBusy(false);
+    }, [importFile, importMode, importPassword, loadEntries, refreshStatus]);
+
     return (
         <main>
             <h1>Encrypted ID Vault</h1>
@@ -492,6 +648,42 @@ export function Popup() {
                     <button type="button" disabled={busy} onClick={() => void savePreferences()}>
                         Save preferences
                     </button>
+                </section>
+            ) : null}
+            {status.hasVault ? (
+                <section>
+                    <h2>Backup and restore</h2>
+                    <button type="button" disabled={busy} onClick={() => void exportVault()}>
+                        Export encrypted vault
+                    </button>
+                    {lastExportSummary ? <p>{lastExportSummary}</p> : null}
+
+                    <h3>Import encrypted vault</h3>
+                    <label>
+                        Import mode
+                        <select value={importMode} onChange={(event) => setImportMode(event.target.value as "replace" | "merge") }>
+                            <option value="merge">Merge with current vault</option>
+                            <option value="replace">Replace current vault</option>
+                        </select>
+                    </label>
+                    <label>
+                        Vault file
+                        <input ref={importFileInputRef} type="file" accept=".json,.enc.json,application/json" onChange={(event) => void selectImportFile(event)} />
+                    </label>
+                    {importFileName ? <p>Selected file: {importFileName}</p> : null}
+                    <label>
+                        Master password for imported vault
+                        <input
+                            type="password"
+                            value={importPassword}
+                            onChange={(event) => setImportPassword(event.target.value)}
+                            placeholder="Enter master password"
+                        />
+                    </label>
+                    <button type="button" disabled={busy || !importFile || importPassword.trim().length === 0} onClick={() => void importVault()}>
+                        Import encrypted vault
+                    </button>
+                    {lastImportSummary ? <p>{lastImportSummary}</p> : null}
                 </section>
             ) : null}
             {status.hasVault && !status.locked ? (

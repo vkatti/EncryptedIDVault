@@ -288,7 +288,7 @@ The extension must enforce paid access for cloud sync features while keeping loc
 - User can downgrade without data loss.
 
 ## FR11: Payments and subscriptions
-The product must support Free, Pro Monthly, Pro Yearly, and Lifetime plans. Third-party billing flows such as Stripe-backed implementations are a practical approach for browser extensions because legacy store-native payment options are not the primary strategic path for current extension monetization discussions.[cite:50][cite:52][cite:55]
+The product must support Free, Pro Monthly, Pro Yearly, and Lifetime plans. Third-party billing flows such as Razorpay-backed implementations are a practical approach for browser extensions because legacy store-native payment options are not the primary strategic path for current extension monetization discussions.[cite:50][cite:52][cite:55]
 
 ### Requirements
 - Hosted checkout outside extension UI or in compliant external purchase flow.
@@ -553,7 +553,7 @@ It reduces complexity, avoids plaintext index leakage, and matches the productâ€
 
 ## Billing architecture
 ### Recommended model
-- Hosted checkout using Stripe or Stripe-backed monetization service.
+- Hosted checkout using Razorpay or Razorpay-backed monetization service.
 - Backend stores user account, customer ID, plan, entitlement state, renewal state.
 - Extension authenticates user to backend through magic link or account sign-in and fetches signed entitlement.
 

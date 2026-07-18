@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Extension Test Form</title>
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px;
+            background: #f6f8fb;
+            color: #1f2937;
+        }
+
+        .card {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #ffffff;
+            border: 1px solid #dbe2ea;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.35rem;
+        }
+
+        p.note {
+            margin-top: 0;
+            color: #475569;
+        }
+
+        form {
+            display: grid;
+            gap: 12px;
+        }
+
+        label {
+            display: grid;
+            gap: 6px;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        input,
+        textarea,
+        select,
+        button {
+            font: inherit;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        textarea {
+            min-height: 84px;
+            resize: vertical;
+        }
+
+        .editable {
+            min-height: 70px;
+            padding: 10px;
+            border: 1px dashed #94a3b8;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            cursor: pointer;
+            background: #0f766e;
+            color: #fff;
+            border-color: #0f766e;
+        }
+
+        button.secondary {
+            background: #fff;
+            color: #0f172a;
+            border-color: #94a3b8;
+        }
+
+        pre {
+            margin: 14px 0 0;
+            padding: 12px;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 8px;
+            overflow: auto;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <h1>Encrypted ID Vault Test Form</h1>
+        <p class="note">Use this page to test insert into text inputs, textarea, and contenteditable. Password field should be blocked by the extension.</p>
+
+        <form id="test-form" action="#" method="post">
+            <label>
+                Full Name
+                <input id="fullName" name="fullName" type="text" autocomplete="name" placeholder="Type or insert here">
+            </label>
+
+            <label>
+                PAN
+                <input id="pan" name="pan" type="text" placeholder="ABCDE1234F">
+            </label>
+
+            <label>
+                Aadhaar
+                <input id="aadhaar" name="aadhaar" type="text" placeholder="1234 5678 9012">
+            </label>
+
+            <label>
+                Notes (textarea)
+                <textarea id="notes" name="notes" placeholder="Insert into textarea"></textarea>
+            </label>
+
+            <label>
+                Category
+                <select id="category" name="category">
+                    <option value="identity">Identity</option>
+                    <option value="tax">Tax</option>
+                    <option value="banking">Banking</option>
+                </select>
+            </label>
+
+            <label>
+                Password (should be blocked)
+                <input id="password" name="password" type="password" placeholder="Extension should not insert here">
+            </label>
+
+            <label for="editableBox">Contenteditable target</label>
+            <div id="editableBox" class="editable" contenteditable="true" role="textbox" aria-label="Contenteditable target">
+                Click here and try insertion.
+            </div>
+
+            <div class="actions">
+                <button type="submit">Submit</button>
+                <button id="resetBtn" type="button" class="secondary">Reset</button>
+            </div>
+        </form>
+
+        <pre id="output">Submit to preview collected values.</pre>
+    </main>
+
+    <script>
+        const form = document.getElementById("test-form");
+        const resetBtn = document.getElementById("resetBtn");
+        const output = document.getElementById("output");
+        const editableBox = document.getElementById("editableBox");
+
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+
+            const data = Object.fromEntries(new FormData(form).entries());
+            data.contenteditable = editableBox.textContent.trim();
+
+            output.textContent = JSON.stringify(data, null, 2);
+        });
+
+        resetBtn.addEventListener("click", () => {
+            form.reset();
+            editableBox.textContent = "Click here and try insertion.";
+            output.textContent = "Submit to preview collected values.";
+        });
+    </script>
+</body>
+</html>

@@ -191,9 +191,10 @@ test("handleRuntimeMessage routes valid getStatus messages", async () => {
 
     assert.equal(result.ok, true);
     if ("state" in result) {
-        assert.equal(result.state.lastMessageAt, "2026-07-16T00:04:00.000Z");
+        assert.equal(result.state.lastMessageAt, "2026-07-16T00:01:00.000Z");
         assert.equal(result.message.type, "vault/getStatus");
         assert.equal(result.state.lastUnlockedAt, null);
+        assert.equal(runtimeState.lastMessageAt, "2026-07-16T00:01:00.000Z");
         return;
     }
 

@@ -24,6 +24,9 @@ export async function handleRuntimeMessage(
         return { ok: false, error: "ERR_INVALID_MESSAGE" };
     }
 
-    runtimeState.lastMessageAt = nowIso;
+    // Status reads should not extend the auto-lock activity window.
+    if (message.type !== "vault/getStatus") {
+        runtimeState.lastMessageAt = nowIso;
+    }
     return routeBackgroundMessage(message, runtimeState, createStatusMessage, vaultLifecycle, insertEntry, senderTabId);
 }

@@ -135,6 +135,9 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     void (async () => {
         const senderTabId = typeof sender.tab?.id === "number" ? sender.tab.id : undefined;
+        const messageType = typeof message === "object" && message !== null && "type" in message && typeof (message as { type?: unknown }).type === "string"
+            ? (message as { type: string }).type
+            : null;
         const response = await handleRuntimeMessage(message, runtimeState, createStatusMessage, vaultLifecycle, new Date().toISOString(), undefined, senderTabId);
 
         if (response.ok && "locked" in response) {
@@ -149,7 +152,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         }
 
         const shouldRefreshAutoLock =
-            !(response.ok === false && response.error === "ERR_INVALID_MESSAGE") && runtimeState.hasVault && !runtimeState.locked;
+            !(response.ok === false && response.error === "ERR_INVALID_MESSAGE")
+            && messageType !== "vault/getStatus"
+            && runtimeState.hasVault
+            && !runtimeState.locked;
 
         if (shouldRefreshAutoLock) {
             scheduleAutoLockAlarm();
